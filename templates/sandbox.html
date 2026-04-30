@@ -1,24 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Sandbox - PZ Panel{% endblock %}
 {% block content %}
-<div class="page-title">Sandbox Settings</div>
-<div class="page-subtitle">// in-game style settings, parsed directly from your SandboxVars.lua</div>
+<div class="page-title">{{ t.sandbox_title }}</div>
+<div class="page-subtitle">{{ t.sandbox_subtitle }}</div>
 
 <div class="card">
   <div class="row" style="margin-bottom:14px; gap:8px; align-items:center; flex-wrap:wrap">
-    <input type="text" id="searchBox" placeholder="🔍 Search settings..." style="flex:1; min-width:200px" oninput="filterAll()"/>
-    <span class="badge" id="dirtyCount" style="display:none">0 changes</span>
-    <button class="btn btn-ghost btn-sm" onclick="discardChanges()" id="discardBtn" style="display:none">Discard</button>
-    <button class="btn btn-warn btn-sm" onclick="resetAllToDefault()">↺ Reset Defaults</button>
-    <button class="btn btn-primary" onclick="saveAll()" id="saveBtn">💾 Save All</button>
+    <input type="text" id="searchBox" placeholder="{{ t.sandbox_search_placeholder }}" style="flex:1; min-width:200px" oninput="filterAll()"/>
+    <span class="badge" id="dirtyCount" style="display:none">0</span>
+    <button class="btn btn-ghost btn-sm" onclick="discardChanges()" id="discardBtn" style="display:none">{{ t.sandbox_discard_btn }}</button>
+    <button class="btn btn-warn btn-sm" onclick="resetAllToDefault()">{{ t.sandbox_reset_btn }}</button>
+    <button class="btn btn-primary" onclick="saveAll()" id="saveBtn">{{ t.sandbox_save_btn }}</button>
   </div>
 
   <div class="tabs" id="tabs"></div>
   <div id="content">
-    <div class="empty"><span class="spin">⟳</span> Loading...</div>
+    <div class="empty"><span class="spin">⟳</span> {{ t.sandbox_loading }}</div>
   </div>
 
-  <div class="hint" style="margin-top:14px">⚠️ Changes take effect after server restart.</div>
+  <div class="hint" style="margin-top:14px">{{ t.sandbox_restart_hint }}</div>
 </div>
 {% endblock %}
 
@@ -40,7 +40,6 @@ async function loadSandbox() {
     }
     groups = d.groups;
     flatGroupIds = new Set(d.flatGroups || []);
-    // store originals
     originalValues = {};
     groups.forEach(g => g.items.forEach(it => {
       const fk = fullKey(g.id, it.key);
@@ -51,7 +50,7 @@ async function loadSandbox() {
     renderContent();
     updateDirtyCount();
   } catch(e) {
-    document.getElementById('content').innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
+    document.getElementById('content').innerHTML = '<div class="empty">' + T.sandbox_error + e.message + '</div>';
   }
 }
 
@@ -85,7 +84,7 @@ function renderContent() {
   });
 
   if (!items.length) {
-    document.getElementById('content').innerHTML = '<div class="empty">No matching settings</div>';
+    document.getElementById('content').innerHTML = '<div class="empty">' + T.sandbox_no_match + '</div>';
     return;
   }
 
@@ -103,7 +102,6 @@ function renderContent() {
     } else if (typeof item.value === 'string') {
       control = `<input type="text" value="${escapeAttr(cur)}" onchange="setDirty('${escapeAttr(fk)}', this.value)"/>`;
     } else {
-      // number
       const minAttr = item.min !== null ? `min="${item.min}"` : '';
       const maxAttr = item.max !== null ? `max="${item.max}"` : '';
       const stepAttr = (typeof item.value === 'number' && Number.isInteger(item.value)) ? 'step="1"' : 'step="any"';
@@ -119,13 +117,13 @@ function renderContent() {
     return `
       <div class="sb-row" ${isDirty ? 'style="border:1px solid var(--warn)"' : ''}>
         <div>
-          <div class="sb-label">${escapeHtml(formatLabel(item.key))} ${isDirty ? '<span class="badge warn">modified</span>' : ''}</div>
+          <div class="sb-label">${escapeHtml(formatLabel(item.key))} ${isDirty ? `<span class="badge warn">${T.sandbox_modified_badge}</span>` : ''}</div>
           ${item.description ? `<div style="font-size:12px; color:var(--text); opacity:0.7; margin-top:4px">${escapeHtml(item.description)}</div>` : ''}
           ${metaLine}
         </div>
         <div style="display:flex; gap:6px; align-items:center">
           ${control}
-          ${item.default !== null ? `<button class="btn btn-ghost btn-sm" title="Reset to default" onclick="resetOne('${escapeAttr(fk)}', ${JSON.stringify(item.default)})">↺</button>` : ''}
+          ${item.default !== null ? `<button class="btn btn-ghost btn-sm" title="${T.sandbox_reset_title}" onclick="resetOne('${escapeAttr(fk)}', ${JSON.stringify(item.default)})">↺</button>` : ''}
         </div>
       </div>
     `;
@@ -133,12 +131,10 @@ function renderContent() {
 }
 
 function formatLabel(key) {
-  // CamelCase → "Camel Case"
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
 }
 
 function setDirty(key, value) {
-  // Compare to original — if same, remove from dirty
   if (originalValues[key] === value || String(originalValues[key]) === String(value)) {
     delete dirty[key];
   } else {
@@ -155,12 +151,12 @@ function resetOne(key, defaultVal) {
 
 async function resetAllToDefault() {
   const withDefaults = groups.reduce((n, g) => n + g.items.filter(it => it.default !== null).length, 0);
-  if (!withDefaults) { toast('No defaults defined in this sandbox file', 'warn'); return; }
+  if (!withDefaults) { toast(T.sandbox_no_defaults, 'warn'); return; }
 
   const pendingCount = Object.keys(dirty).length;
   const confirmMsg = pendingCount
-    ? `Reset all ${withDefaults} settings with known defaults to their default values and save immediately?\n\nThis will also discard your ${pendingCount} unsaved change(s).`
-    : `Reset all ${withDefaults} settings with known defaults to their default values and save immediately?`;
+    ? fmt(T.sandbox_reset_confirm_pending, {total: withDefaults, pending: pendingCount})
+    : fmt(T.sandbox_reset_confirm, {total: withDefaults});
   if (!confirm(confirmMsg)) return;
 
   dirty = {};
@@ -173,7 +169,7 @@ async function resetAllToDefault() {
   }));
 
   if (!Object.keys(dirty).length) {
-    toast('All settings are already at their default values', 'ok');
+    toast(T.sandbox_already_default, 'ok');
     return;
   }
 
@@ -182,7 +178,7 @@ async function resetAllToDefault() {
 
 function discardChanges() {
   if (!Object.keys(dirty).length) return;
-  if (!confirm('Discard all unsaved changes?')) return;
+  if (!confirm(T.sandbox_discard_confirm)) return;
   dirty = {};
   renderContent();
   renderTabs();
@@ -194,7 +190,8 @@ function updateDirtyCount() {
   const pill = document.getElementById('dirtyCount');
   const btn = document.getElementById('discardBtn');
   if (count > 0) {
-    pill.textContent = count + ' change' + (count > 1 ? 's' : '');
+    const key = count > 1 ? T.sandbox_changes_plural : T.sandbox_changes;
+    pill.textContent = fmt(key, {n: count});
     pill.style.display = '';
     btn.style.display = '';
   } else {
@@ -209,12 +206,12 @@ function filterAll() {
 
 async function saveAll() {
   if (!Object.keys(dirty).length) {
-    toast('No changes to save', 'warn');
+    toast(T.sandbox_no_changes, 'warn');
     return;
   }
   const btn = document.getElementById('saveBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin">⟳</span> Saving...';
+  btn.innerHTML = '<span class="spin">⟳</span> ' + T.sandbox_saving;
 
   try {
     const r = await fetch('/sandbox/api/save', {
@@ -224,18 +221,18 @@ async function saveAll() {
     });
     const d = await r.json();
     if (d.success) {
-      toast('✓ ' + d.count + ' settings saved! Restart server to apply.', 'ok');
+      toast(fmt(T.sandbox_saved, {n: d.count}), 'ok');
       dirty = {};
       await loadSandbox();
     } else {
-      toast('Error: ' + d.error, 'err');
+      toast(T.sandbox_error + d.error, 'err');
     }
   } catch(e) {
-    toast('Error: ' + e.message, 'err');
+    toast(T.sandbox_error + e.message, 'err');
   }
 
   btn.disabled = false;
-  btn.innerHTML = '💾 Save All';
+  btn.innerHTML = T.sandbox_save_btn;
 }
 
 function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }

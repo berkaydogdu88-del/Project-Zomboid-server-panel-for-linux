@@ -60,6 +60,15 @@ nav a {
 }
 nav a:hover { color: var(--text); background: var(--surface2); }
 nav a.active { color: var(--accent); background: rgba(200,245,58,0.08); }
+.lang-switcher {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11px;
+  flex-shrink: 0;
+}
+.lang-switcher a { color: var(--muted); padding: 4px 6px; border-radius: 4px; transition: color 0.15s; }
+.lang-switcher a:hover { color: var(--text); }
+.lang-switcher a.active { color: var(--accent); }
+.lang-switcher span { color: var(--border2); }
 .status-pill {
   display: flex; align-items: center; gap: 8px;
   background: var(--surface2);

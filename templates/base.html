@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="{{ lang }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,14 +11,19 @@
 <header>
   <div class="logo">PZ<span>/</span>PANEL</div>
   <nav>
-    <a href="/mods/" class="{% if request.path.startswith('/mods') %}active{% endif %}">// Modlar</a>
-    <a href="/sandbox/" class="{% if request.path.startswith('/sandbox') %}active{% endif %}">// Sandbox</a>
-    <a href="/world/" class="{% if request.path.startswith('/world') %}active{% endif %}">// Dünya</a>
-    <a href="/terminal" class="{% if request.path.startswith('/terminal') %}active{% endif %}">// Terminal</a>
+    <a href="/mods/" class="{% if request.path.startswith('/mods') %}active{% endif %}">{{ t.nav_mods }}</a>
+    <a href="/sandbox/" class="{% if request.path.startswith('/sandbox') %}active{% endif %}">{{ t.nav_sandbox }}</a>
+    <a href="/world/" class="{% if request.path.startswith('/world') %}active{% endif %}">{{ t.nav_world }}</a>
+    <a href="/terminal" class="{% if request.path.startswith('/terminal') %}active{% endif %}">{{ t.nav_terminal }}</a>
   </nav>
+  <div class="lang-switcher">
+    <a href="/set-language/en"{% if lang == 'en' %} class="active"{% endif %}>EN</a>
+    <span>|</span>
+    <a href="/set-language/tr"{% if lang == 'tr' %} class="active"{% endif %}>TR</a>
+  </div>
   <div class="status-pill">
     <div class="dot" id="srvDot"></div>
-    <span id="srvTxt">kontrol ediliyor</span>
+    <span id="srvTxt">{{ t.status_checking }}</span>
   </div>
 </header>
 <main>
@@ -27,6 +32,12 @@
 <div class="toast" id="toast"></div>
 
 <script>
+const T = {{ t|tojson|safe }};
+
+function fmt(str, vars) {
+  return str.replace(/\{(\w+)\}/g, function(_, k) { return vars[k] != null ? vars[k] : ''; });
+}
+
 function toast(msg, type) {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -39,7 +50,7 @@ async function checkSrv() {
     const r = await fetch('/api/server/status');
     const d = await r.json();
     document.getElementById('srvDot').className = 'dot' + (d.running ? ' on' : '');
-    document.getElementById('srvTxt').textContent = d.running ? 'çalışıyor' : 'kapalı';
+    document.getElementById('srvTxt').textContent = d.running ? T.status_running : T.status_offline;
   } catch(e) {}
 }
 

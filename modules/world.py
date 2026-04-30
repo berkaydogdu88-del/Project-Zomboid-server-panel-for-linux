@@ -3,7 +3,7 @@ import os
 import shutil
 import datetime
 import tarfile
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, g
 from config import SAVES_DIR, BACKUP_DIR, ensure_dirs, is_server_running
 
 world_bp = Blueprint("world", __name__, url_prefix="/world")
@@ -108,11 +108,11 @@ def api_backup():
     mode = data.get("mode")
     name = data.get("name")
     if not mode or not name:
-        return jsonify({"success": False, "error": "mode/name eksik"})
+        return jsonify({"success": False, "error": g.t["err_missing_fields"]})
 
     world_path = os.path.join(SAVES_DIR, mode, name)
     if not os.path.isdir(world_path):
-        return jsonify({"success": False, "error": "Dünya bulunamadı"})
+        return jsonify({"success": False, "error": g.t["err_world_not_found"]})
 
     ensure_dirs()
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -132,7 +132,7 @@ def api_backup():
 def api_delete():
     """Bir dünyayı sil (sunucu kapalıyken)"""
     if is_server_running():
-        return jsonify({"success": False, "error": "Önce sunucuyu durdur!"})
+        return jsonify({"success": False, "error": g.t["err_server_running"]})
 
     data = request.json
     mode = data.get("mode")
@@ -140,13 +140,12 @@ def api_delete():
     create_backup = data.get("createBackup", True)
 
     if not mode or not name:
-        return jsonify({"success": False, "error": "mode/name eksik"})
+        return jsonify({"success": False, "error": g.t["err_missing_fields"]})
 
     world_path = os.path.join(SAVES_DIR, mode, name)
     if not os.path.isdir(world_path):
-        return jsonify({"success": False, "error": "Dünya bulunamadı"})
+        return jsonify({"success": False, "error": g.t["err_world_not_found"]})
 
-    # Önce yedekle (istenirse)
     backup_name = None
     if create_backup:
         ensure_dirs()
@@ -158,7 +157,7 @@ def api_delete():
             with tarfile.open(backup_path, "w:gz") as tar:
                 tar.add(world_path, arcname=os.path.join(mode, name))
         except Exception as e:
-            return jsonify({"success": False, "error": f"Yedekleme başarısız: {e}"})
+            return jsonify({"success": False, "error": g.t["err_backup_failed"] + str(e)})
 
     # Sil
     try:
@@ -177,16 +176,16 @@ def _valid_backup_name(name):
 def api_restore():
     """Yedeği geri yükle"""
     if is_server_running():
-        return jsonify({"success": False, "error": "Önce sunucuyu durdur!"})
+        return jsonify({"success": False, "error": g.t["err_server_running"]})
 
     data = request.json
     backup_name = data.get("backup")
     if not _valid_backup_name(backup_name):
-        return jsonify({"success": False, "error": "Geçersiz yedek adı"})
+        return jsonify({"success": False, "error": g.t["err_invalid_backup"]})
 
     backup_path = os.path.join(BACKUP_DIR, backup_name)
     if not os.path.isfile(backup_path):
-        return jsonify({"success": False, "error": "Yedek bulunamadı"})
+        return jsonify({"success": False, "error": g.t["err_backup_not_found"]})
 
     try:
         with tarfile.open(backup_path, "r:gz") as tar:
@@ -202,11 +201,11 @@ def api_delete_backup():
     data = request.json
     backup_name = data.get("backup")
     if not _valid_backup_name(backup_name):
-        return jsonify({"success": False, "error": "Geçersiz yedek adı"})
+        return jsonify({"success": False, "error": g.t["err_invalid_backup"]})
 
     backup_path = os.path.join(BACKUP_DIR, backup_name)
     if not os.path.isfile(backup_path):
-        return jsonify({"success": False, "error": "Yedek bulunamadı"})
+        return jsonify({"success": False, "error": g.t["err_backup_not_found"]})
 
     try:
         os.remove(backup_path)

@@ -1,87 +1,87 @@
 {% extends "base.html" %}
-{% block title %}Modlar - PZ Panel{% endblock %}
+{% block title %}{{ t.mods_title }} - PZ Panel{% endblock %}
 {% block content %}
-<div class="page-title">Mod Yönetimi</div>
-<div class="page-subtitle">// workshop modlarını ekle, kaldır, ara</div>
+<div class="page-title">{{ t.mods_title }}</div>
+<div class="page-subtitle">{{ t.mods_subtitle }}</div>
 
-<div class="sec-label">// hızlı ekle</div>
+<div class="sec-label">{{ t.mods_quick_add_label }}</div>
 <div class="card">
   <div class="row">
-    <input type="text" id="wid" placeholder="Workshop ID veya URL yapıştır..." onkeydown="if(event.key==='Enter')addMod()"/>
-    <button class="btn btn-primary" id="addBtn" onclick="addMod()">+ Ekle</button>
+    <input type="text" id="wid" placeholder="{{ t.mods_wid_placeholder }}" onkeydown="if(event.key==='Enter')addMod()"/>
+    <button class="btn btn-primary" id="addBtn" onclick="addMod()">{{ t.mods_add_btn }}</button>
   </div>
-  <div class="hint">İpucu: Steam Workshop URL'sini de yapıştırabilirsin.</div>
+  <div class="hint">{{ t.mods_tip }}</div>
   <div id="depAlert" style="display:none; margin-top:14px; padding:12px 16px; background:rgba(58,245,160,0.06); border:1px solid rgba(58,245,160,0.25); border-radius:8px; font-family:var(--mono); font-size:12px;">
-    <div style="color:var(--accent2); margin-bottom:6px; font-weight:700">⬇ Otomatik eklenen bağımlılıklar:</div>
+    <div style="color:var(--accent2); margin-bottom:6px; font-weight:700" id="depTitle">{{ t.mods_dep_title }}</div>
     <div id="depList"></div>
-    <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="document.getElementById('depAlert').style.display='none'">Kapat</button>
+    <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="document.getElementById('depAlert').style.display='none'">{{ t.mods_close_btn }}</button>
   </div>
 </div>
 
-<div class="sec-label">// workshop'ta ara</div>
+<div class="sec-label">{{ t.mods_search_label }}</div>
 <div class="card">
   <div class="row" style="flex-wrap:wrap; gap:10px">
     <div style="flex:2; min-width:200px; position:relative">
-      <input type="text" id="searchQ" placeholder="Mod ara... (boş bırak = en popüler modlar)" style="width:100%; padding-right:32px"
+      <input type="text" id="searchQ" placeholder="{{ t.mods_search_placeholder }}" style="width:100%; padding-right:32px"
              oninput="debouncedSearch()" onkeydown="if(event.key==='Enter'){clearTimeout(searchDebounce);currentPage=1;searchMods()}"/>
-      <button id="searchClearBtn" onclick="clearSearch()" title="Temizle"
+      <button id="searchClearBtn" onclick="clearSearch()" title="{{ t.mods_close_btn }}"
               style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:0; line-height:1">✕</button>
     </div>
     <select id="buildFilter" style="flex:1; min-width:130px">
-      <option value="">Tüm Buildler</option>
+      <option value="">{{ t.mods_all_builds }}</option>
       <option value="Build 41">Build 41</option>
       <option value="Build 42">Build 42</option>
     </select>
     <select id="searchCat" style="flex:1; min-width:150px">
-      <option value="">Tüm kategoriler</option>
+      <option value="">{{ t.mods_all_categories }}</option>
     </select>
     <select id="searchSort" style="flex:1; min-width:150px">
-      <option value="trend">Popüler (Trend)</option>
-      <option value="totaluniquesubscribers">En Çok Aboneli</option>
-      <option value="mostrecent">En Yeni</option>
-      <option value="lastupdated">Son Güncellenen</option>
+      <option value="trend">{{ t.mods_sort_trending }}</option>
+      <option value="totaluniquesubscribers">{{ t.mods_sort_subscribers }}</option>
+      <option value="mostrecent">{{ t.mods_sort_newest }}</option>
+      <option value="lastupdated">{{ t.mods_sort_updated }}</option>
     </select>
-    <button class="btn btn-ghost" onclick="currentPage=1; searchMods()">Ara</button>
+    <button class="btn btn-ghost" onclick="currentPage=1; searchMods()">{{ t.mods_search_btn }}</button>
   </div>
   <div id="searchMeta" style="margin-top:10px; font-family:var(--mono); font-size:11px; color:var(--muted)"></div>
   <div id="searchResults" style="margin-top:10px"></div>
   <div id="paginationControls" style="margin-top:14px"></div>
 </div>
 
-<div class="sec-label">// kurulu modlar</div>
+<div class="sec-label">{{ t.mods_installed_label }}</div>
 <div class="card">
   <div class="row" style="margin-bottom:12px; gap:8px; align-items:center">
-    <input type="text" id="modFilter" placeholder="Kurulu modlarda filtrele..." style="flex:1" oninput="render()"/>
-    <button class="btn btn-ghost btn-sm" id="autoSortBtn" onclick="autoSort()">⟳ Otomatik Sırala</button>
+    <input type="text" id="modFilter" placeholder="{{ t.mods_filter_placeholder }}" style="flex:1" oninput="render()"/>
+    <button class="btn btn-ghost btn-sm" id="autoSortBtn" onclick="autoSort()">{{ t.mods_auto_sort_btn }}</button>
   </div>
   <div id="reorderBar" style="display:none; margin-bottom:12px; align-items:center; gap:12px">
-    <button class="btn btn-primary btn-sm" onclick="saveOrder()">Sırayı Kaydet</button>
-    <span style="font-family:var(--mono); font-size:11px; color:var(--muted)">Sürükleyerek sıralamayı değiştir, sonra kaydet</span>
+    <button class="btn btn-primary btn-sm" onclick="saveOrder()">{{ t.mods_save_order_btn }}</button>
+    <span style="font-family:var(--mono); font-size:11px; color:var(--muted)">{{ t.mods_drag_hint }}</span>
   </div>
   <div class="list" id="modList">
-    <div class="empty"><div class="icon">🧟</div>yükleniyor...</div>
+    <div class="empty"><div class="icon">🧟</div>{{ t.mods_loading }}</div>
   </div>
 </div>
 
-<div class="sec-label">// sunucu kontrolü</div>
+<div class="sec-label">{{ t.mods_server_label }}</div>
 <div class="card">
   <div class="row">
-    <button class="btn btn-ghost" onclick="srvAction('start')">▶ Başlat</button>
-    <button class="btn btn-ghost btn-stop" onclick="srvAction('stop')">■ Durdur</button>
-    <button class="btn btn-ghost" onclick="srvAction('restart')">↺ Yeniden Başlat</button>
+    <button class="btn btn-ghost" onclick="srvAction('start')">{{ t.mods_start_btn }}</button>
+    <button class="btn btn-ghost btn-stop" onclick="srvAction('stop')">{{ t.mods_stop_btn }}</button>
+    <button class="btn btn-ghost" onclick="srvAction('restart')">{{ t.mods_restart_btn }}</button>
   </div>
-  <div class="hint">Mod ekledikten sonra sunucuyu yeniden başlat.</div>
+  <div class="hint">{{ t.mods_server_hint }}</div>
 </div>
 
-<!-- Manuel Mod ID modal -->
+<!-- Manual Mod ID modal -->
 <div class="modal-bg" id="manualModal">
   <div class="modal">
-    <h2>Mod ID gerekli</h2>
-    <p>Bu mod sayfasında "Mod ID" yazılmamış. Manuel girmen gerekiyor — Steam'deki açıklamada bul ve buraya yapıştır.</p>
-    <input type="text" id="manualModId" placeholder="örn: BetterSorting"/>
+    <h2>{{ t.mods_manual_title }}</h2>
+    <p>{{ t.mods_manual_desc }}</p>
+    <input type="text" id="manualModId" placeholder="{{ t.mods_manual_placeholder }}"/>
     <div class="actions">
-      <button class="btn btn-ghost" onclick="closeManualModal()">İptal</button>
-      <button class="btn btn-primary" onclick="confirmManualModId()">Onayla</button>
+      <button class="btn btn-ghost" onclick="closeManualModal()">{{ t.mods_cancel_btn }}</button>
+      <button class="btn btn-primary" onclick="confirmManualModId()">{{ t.mods_confirm_btn }}</button>
     </div>
   </div>
 </div>
@@ -107,7 +107,7 @@ function render() {
   const bar = document.getElementById('reorderBar');
 
   if (!mods.length) {
-    el.innerHTML = '<div class="empty"><div class="icon">🧟</div>henüz mod yok</div>';
+    el.innerHTML = '<div class="empty"><div class="icon">🧟</div>' + T.mods_empty + '</div>';
     bar.style.display = 'none';
     return;
   }
@@ -121,7 +121,7 @@ function render() {
     : mods.map((m, i) => ({...m, origIdx: i}));
 
   if (!display.length) {
-    el.innerHTML = '<div class="empty">Eşleşen mod bulunamadı</div>';
+    el.innerHTML = '<div class="empty">' + T.mods_no_match + '</div>';
     bar.style.display = 'none';
     return;
   }
@@ -131,7 +131,7 @@ function render() {
     const dragAttrs = draggable
       ? `draggable="true" ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})" ondrop="dragDrop(event,${i})" ondragend="dragEnd()"`
       : '';
-    const handle = draggable ? `<div class="drag-handle" title="Sürükle">&#8942;</div>` : '';
+    const handle = draggable ? `<div class="drag-handle" title="${T.mods_drag_title}">&#8942;</div>` : '';
     return `
       <div class="mod-item" ${dragAttrs}>
         ${handle}
@@ -139,9 +139,9 @@ function render() {
           <div class="mod-name">${escapeHtml(m.modId)}</div>
           <div class="mod-meta">workshop: ${m.workshopId}</div>
         </div>
-        <span class="badge">aktif</span>
+        <span class="badge">${T.mods_active_badge}</span>
         <a class="btn btn-ghost btn-sm" href="https://steamcommunity.com/sharedfiles/filedetails/?id=${m.workshopId}" target="_blank">Steam</a>
-        <button class="btn btn-red btn-sm" onclick="removeMod('${escapeAttr(m.workshopId)}')">Kaldır</button>
+        <button class="btn btn-red btn-sm" onclick="removeMod('${escapeAttr(m.workshopId)}')">${T.mods_remove_btn}</button>
       </div>
     `;
   }).join('');
@@ -184,11 +184,11 @@ async function saveOrder() {
   });
   const d = await r.json();
   if (d.success) {
-    toast('Sıra kaydedildi!', 'ok');
+    toast(T.mods_order_saved, 'ok');
     orderChanged = false;
     document.getElementById('reorderBar').style.display = 'none';
   } else {
-    toast('Hata: ' + (d.error || 'bilinmeyen'), 'err');
+    toast(T.mods_order_error + (d.error || '?'), 'err');
   }
 }
 
@@ -197,7 +197,6 @@ function escapeHtml(s) {
 }
 
 function extractWorkshopId(input) {
-  // URL'den ID çek
   const m = input.match(/(?:id=|filedetails\/\?id=)(\d+)/);
   if (m) return m[1];
   if (/^\d+$/.test(input)) return input;
@@ -207,11 +206,11 @@ function extractWorkshopId(input) {
 async function addMod(modIdOverride) {
   const input = document.getElementById('wid');
   const wid = extractWorkshopId(input.value.trim());
-  if (!wid) { toast('Geçerli bir Workshop ID veya URL gir!', 'err'); return; }
+  if (!wid) { toast(T.mods_invalid_wid, 'err'); return; }
 
   const btn = document.getElementById('addBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin">⟳</span> Ekleniyor...';
+  btn.innerHTML = '<span class="spin">⟳</span> ' + T.mods_adding;
 
   const body = { workshopId: wid };
   if (modIdOverride) body.modId = modIdOverride;
@@ -225,9 +224,9 @@ async function addMod(modIdOverride) {
     const d = await r.json();
 
     if (d.success) {
-      let msg = d.name + ' eklendi!';
+      let msg = d.name + ' ' + T.mods_added;
       if (d.autoDeps && d.autoDeps.length) {
-        msg += ' (+' + d.autoDeps.length + ' bağımlılık otomatik eklendi)';
+        msg += ' (+' + d.autoDeps.length + ' ' + T.mods_deps_added + ')';
         const depAlert = document.getElementById('depAlert');
         const depList = document.getElementById('depList');
         depList.innerHTML = d.autoDeps.map(dep =>
@@ -235,7 +234,7 @@ async function addMod(modIdOverride) {
         ).join('');
         if (d.skippedDeps && d.skippedDeps.length) {
           depList.innerHTML += d.skippedDeps.map(s =>
-            `<div style="margin:3px 0; color:var(--warn)">&#x26A0; ${escapeHtml(s)} — manuel ekle</div>`
+            `<div style="margin:3px 0; color:var(--warn)">&#x26A0; ${escapeHtml(s)} ${T.mods_dep_manual}</div>`
           ).join('');
         }
         depAlert.style.display = 'block';
@@ -247,14 +246,14 @@ async function addMod(modIdOverride) {
       pendingWid = wid;
       document.getElementById('manualModal').classList.add('show');
     } else {
-      toast('Hata: ' + d.error, 'err');
+      toast(T.mods_order_error + d.error, 'err');
     }
   } catch(e) {
-    toast('Bağlantı hatası', 'err');
+    toast(T.mods_connection_error, 'err');
   }
 
   btn.disabled = false;
-  btn.innerHTML = '+ Ekle';
+  btn.innerHTML = T.mods_add_btn;
 }
 
 function closeManualModal() {
@@ -264,7 +263,7 @@ function closeManualModal() {
 
 function confirmManualModId() {
   const modId = document.getElementById('manualModId').value.trim();
-  if (!modId) { toast('Mod ID gir!', 'err'); return; }
+  if (!modId) { toast(T.mods_enter_mod_id, 'err'); return; }
   if (!pendingWid) { closeManualModal(); return; }
   document.getElementById('wid').value = pendingWid;
   closeManualModal();
@@ -275,7 +274,7 @@ function confirmManualModId() {
 async function removeMod(workshopId) {
   const mod = mods.find(m => m.workshopId === workshopId);
   const label = mod ? mod.modId : workshopId;
-  if (!confirm(`"${label}" modunu kaldırmak istediğine emin misin?`)) return;
+  if (!confirm(fmt(T.mods_remove_confirm, {name: label}))) return;
   const r = await fetch('/mods/api/remove', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -283,14 +282,14 @@ async function removeMod(workshopId) {
   });
   const d = await r.json();
   if (d.success) {
-    let msg = 'Mod kaldırıldı.';
+    let msg = T.mods_removed;
     if (d.cleanedGroups && d.cleanedGroups.length) {
-      msg += ' Sandbox temizlendi: ' + d.cleanedGroups.join(', ');
+      msg += T.mods_sandbox_cleaned + d.cleanedGroups.join(', ');
     }
     toast(msg, 'ok');
     load();
   } else {
-    toast('Hata: ' + d.error, 'err');
+    toast(T.mods_order_error + d.error, 'err');
   }
 }
 
@@ -311,7 +310,6 @@ function relevanceScore(item, query) {
 
   const words = q.split(/\s+/).filter(Boolean);
   if (words.length > 1) {
-    // all words present in order
     let pos = 0;
     const inOrder = words.every(w => {
       const idx = name.indexOf(w, pos);
@@ -320,9 +318,7 @@ function relevanceScore(item, query) {
       return true;
     });
     if (inOrder) return 65;
-    // all words present, any order
     if (words.every(w => name.includes(w))) return 55;
-    // some words match
     const hits = words.filter(w => name.includes(w)).length;
     if (hits > 0) return 20 + (hits / words.length) * 25;
   }
@@ -333,7 +329,6 @@ function relevanceScore(item, query) {
 
 function rankResults(items, query) {
   if (!query.trim()) return items;
-  // stable sort: same-score items keep their original Steam order (popularity)
   return items
     .map((it, i) => ({ it, i, score: relevanceScore(it, query) }))
     .sort((a, b) => b.score - a.score || a.i - b.i)
@@ -362,7 +357,7 @@ async function searchMods() {
   const el = document.getElementById('searchResults');
   const pageEl = document.getElementById('paginationControls');
   const meta = document.getElementById('searchMeta');
-  el.innerHTML = '<div class="empty"><span class="spin">⟳</span> Aranıyor...</div>';
+  el.innerHTML = '<div class="empty"><span class="spin">⟳</span> ' + T.mods_searching + '</div>';
   pageEl.innerHTML = '';
   meta.textContent = '';
   try {
@@ -374,15 +369,13 @@ async function searchMods() {
     const d = await r.json();
     totalPages = d.totalPages || 1;
     if (!d.items || !d.items.length) {
-      el.innerHTML = '<div class="empty">Sonuç bulunamadı</div>';
+      el.innerHTML = '<div class="empty">' + T.mods_no_results + '</div>';
       return;
     }
 
-    // Set of installed workshop IDs for badge detection
     const installedWids = new Set(mods.map(m => m.workshopId));
-
     const ranked = rankResults(d.items, q);
-    meta.textContent = ranked.length + ' sonuç · sayfa ' + currentPage + ' / ' + totalPages;
+    meta.textContent = fmt(T.mods_results_meta, {n: ranked.length, p: currentPage, t: totalPages});
 
     el.innerHTML = '<div class="search-grid">' + ranked.map(it => {
       const installed = installedWids.has(it.workshopId);
@@ -396,15 +389,15 @@ async function searchMods() {
           <div class="meta">workshop: ${it.workshopId}</div>
           <div class="row" style="gap:6px">
             ${installed
-              ? `<span class="badge" style="flex:1;text-align:center;padding:6px">Kurulu</span>`
-              : `<button class="btn btn-primary btn-sm" style="flex:1" onclick="event.stopPropagation();quickAdd('${it.workshopId}')">+ Ekle</button>`}
+              ? `<span class="badge" style="flex:1;text-align:center;padding:6px">${T.mods_installed_badge}</span>`
+              : `<button class="btn btn-primary btn-sm" style="flex:1" onclick="event.stopPropagation();quickAdd('${it.workshopId}')">${T.mods_add_btn}</button>`}
             <a class="btn btn-ghost btn-sm" href="https://steamcommunity.com/sharedfiles/filedetails/?id=${it.workshopId}" target="_blank" onclick="event.stopPropagation()">↗</a>
           </div>
         </div>`;
     }).join('') + '</div>';
     renderPagination();
   } catch(e) {
-    el.innerHTML = '<div class="empty">Hata: ' + e.message + '</div>';
+    el.innerHTML = '<div class="empty">' + T.mods_order_error + e.message + '</div>';
   }
 }
 
@@ -412,12 +405,10 @@ function renderPagination() {
   const el = document.getElementById('paginationControls');
   if (totalPages <= 1) { el.innerHTML = ''; return; }
 
-  // Sayfa butonları: ilk, geri, [pencere], ileri, son
   let buttons = [];
   buttons.push(`<button class="btn btn-ghost btn-sm" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(1)">«</button>`);
   buttons.push(`<button class="btn btn-ghost btn-sm" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">‹</button>`);
 
-  // Sayfa numaraları (akıllı pencere)
   const maxButtons = 7;
   let start = Math.max(1, currentPage - Math.floor(maxButtons / 2));
   let end = Math.min(totalPages, start + maxButtons - 1);
@@ -438,7 +429,7 @@ function renderPagination() {
     <div style="display:flex; gap:4px; align-items:center; justify-content:center; flex-wrap:wrap">
       ${buttons.join('')}
       <span style="font-family:var(--mono); font-size:11px; color:var(--muted); margin-left:12px">
-        Sayfa ${currentPage} / ${totalPages}
+        ${fmt(T.mods_page_of, {p: currentPage, t: totalPages})}
       </span>
     </div>
   `;
@@ -448,7 +439,6 @@ function goToPage(n) {
   if (n < 1 || n > totalPages || n === currentPage) return;
   currentPage = n;
   searchMods();
-  // Scroll'u arama bölgesine getir
   document.getElementById('searchResults').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
@@ -477,7 +467,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function highlightMatch(text, query) {
   if (!query.trim()) return escapeHtml(text);
-  // Try to highlight the longest matching substring first
   const q = query.trim();
   const idx = text.toLowerCase().indexOf(q.toLowerCase());
   if (idx !== -1) {
@@ -485,7 +474,6 @@ function highlightMatch(text, query) {
       + '<mark>' + escapeHtml(text.slice(idx, idx + q.length)) + '</mark>'
       + escapeHtml(text.slice(idx + q.length));
   }
-  // Fall back to highlighting individual words
   let result = escapeHtml(text);
   q.split(/\s+/).filter(Boolean).forEach(word => {
     const re = new RegExp('(' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
@@ -504,34 +492,35 @@ function escapeAttr(s) {
 }
 
 async function autoSort() {
-  if (!mods.length) { toast('Kurulu mod yok', 'warn'); return; }
+  if (!mods.length) { toast(T.mods_no_installed, 'warn'); return; }
   const btn = document.getElementById('autoSortBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin">⟳</span> Kontrol ediliyor...';
+  btn.innerHTML = '<span class="spin">⟳</span> ' + T.mods_auto_sort_checking;
   try {
     const r = await fetch('/mods/api/auto-order');
     const d = await r.json();
-    if (!d.success) { toast('Hata: ' + (d.error || 'Bilinmeyen'), 'err'); return; }
+    if (!d.success) { toast(T.mods_order_error + (d.error || '?'), 'err'); return; }
     if (d.noChange) {
-      const info = d.depsFound ? `(${d.depsFound} bağımlılık ilişkisi bulundu)` : '(bağımlılık verisi bulunamadı)';
-      toast('Sıralama zaten optimal ' + info, 'ok');
+      const info = d.depsFound
+        ? fmt(T.mods_auto_sort_deps_found, {n: d.depsFound})
+        : T.mods_auto_sort_no_data;
+      toast(T.mods_auto_sort_optimal + info, 'ok');
       return;
     }
     mods = d.order;
     orderChanged = true;
     render();
-    toast(`${d.depsFound} bağımlılık bulundu — sıralama güncellendi. Kaydetmek için "Sırayı Kaydet"e tıkla.`, 'warn');
+    toast(fmt(T.mods_auto_sort_updated, {n: d.depsFound}), 'warn');
   } catch(e) {
-    toast('Hata: ' + e.message, 'err');
+    toast(T.mods_order_error + e.message, 'err');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '⟳ Otomatik Sırala';
+    btn.innerHTML = T.mods_auto_sort_btn;
   }
 }
 
 load();
 loadCategories();
-// İlk yüklemede popüler modları göster
 searchMods();
 </script>
 {% endblock %}

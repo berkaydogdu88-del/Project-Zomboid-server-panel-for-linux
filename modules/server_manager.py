@@ -25,7 +25,7 @@ class ServerManager:
     def start(self):
         """Sunucuyu PTY üzerinden başlat"""
         if self.is_alive() or is_server_running():
-            return False, "Sunucu zaten çalışıyor"
+            return False, "Server is already running"
 
         try:
             pid, master_fd = pty.fork()
@@ -57,12 +57,12 @@ class ServerManager:
                 self.reader_thread = threading.Thread(target=self._read_loop, daemon=True)
                 self.reader_thread.start()
 
-                return True, "Sunucu başlatılıyor..."
+                return True, "Server starting..."
         except Exception as e:
             self.pid = None
             self.master_fd = None
             self.running = False
-            return False, f"Hata: {e}"
+            return False, f"Error: {e}"
 
     def _read_loop(self):
         """Sürekli PTY'den oku ve buffer'a + subscriber'lara yaz"""
@@ -94,14 +94,14 @@ class ServerManager:
                     self.log_buffer.append(line)
                     self._broadcast(line)
             except Exception as e:
-                self.log_buffer.append(f"[reader hatası: {e}]")
+                self.log_buffer.append(f"[reader error: {e}]")
                 break
 
         self.running = False
         if partial:
             self.log_buffer.append(partial)
             self._broadcast(partial)
-        self._broadcast("[--- sunucu kapandı ---]")
+        self._broadcast("[--- server stopped ---]")
 
     @staticmethod
     def _strip_ansi(s):
@@ -137,13 +137,13 @@ class ServerManager:
     def send_command(self, cmd):
         """Sunucuya komut gönder"""
         if not self.is_alive() or self.master_fd is None:
-            return False, "Sunucu çalışmıyor"
+            return False, "Server is not running"
         try:
             data = (cmd + "\n").encode("utf-8")
             os.write(self.master_fd, data)
-            return True, "Komut gönderildi"
+            return True, "Command sent"
         except Exception as e:
-            return False, f"Hata: {e}"
+            return False, f"Error: {e}"
 
     def stop(self):
         """Sunucuyu temiz şekilde kapat ('quit' komutu gönder)"""
@@ -172,7 +172,7 @@ class ServerManager:
         subprocess.run(["pkill", "-f", "ProjectZomboid"])
 
         self._cleanup()
-        return True, "Sunucu durduruldu"
+        return True, "Server stopped"
 
     def _cleanup(self):
         self.running = False

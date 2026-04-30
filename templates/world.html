@@ -1,35 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Dünya - PZ Panel{% endblock %}
+{% block title %}{{ t.world_title }} - PZ Panel{% endblock %}
 {% block content %}
-<div class="page-title">Dünya Yönetimi</div>
-<div class="page-subtitle">// dünyaları yedekle, sil, geri yükle</div>
+<div class="page-title">{{ t.world_title }}</div>
+<div class="page-subtitle">{{ t.world_subtitle }}</div>
 
-<div class="sec-label">// dünyalar</div>
+<div class="sec-label">{{ t.world_section_worlds }}</div>
 <div class="card">
   <div class="list" id="worldList">
-    <div class="empty"><span class="spin">⟳</span> yükleniyor...</div>
+    <div class="empty"><span class="spin">⟳</span> {{ t.world_loading }}</div>
   </div>
 </div>
 
-<div class="sec-label">// yedekler</div>
+<div class="sec-label">{{ t.world_section_backups }}</div>
 <div class="card">
   <div class="list" id="backupList">
-    <div class="empty">yedek yok</div>
+    <div class="empty">{{ t.world_no_backups }}</div>
   </div>
 </div>
 
-<!-- Sil onayı modalı -->
+<!-- Delete confirmation modal -->
 <div class="modal-bg" id="confirmModal">
   <div class="modal">
-    <h2 id="confirmTitle">Emin misin?</h2>
+    <h2 id="confirmTitle">{{ t.world_delete_title }}</h2>
     <p id="confirmText"></p>
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px">
       <input type="checkbox" id="autoBackup" checked style="width:auto"/>
-      <label for="autoBackup" style="font-family:var(--mono); font-size:12px; color:var(--muted)">Silmeden önce yedek al</label>
+      <label for="autoBackup" style="font-family:var(--mono); font-size:12px; color:var(--muted)">{{ t.world_auto_backup_label }}</label>
     </div>
     <div class="actions">
-      <button class="btn btn-ghost" onclick="closeConfirm()">İptal</button>
-      <button class="btn btn-red" id="confirmBtn">Sil</button>
+      <button class="btn btn-ghost" onclick="closeConfirm()">{{ t.world_cancel_btn }}</button>
+      <button class="btn btn-red" id="confirmBtn">{{ t.world_delete_confirm_btn }}</button>
     </div>
   </div>
 </div>
@@ -65,7 +65,7 @@ async function loadBackups() {
 function renderWorlds() {
   const el = document.getElementById('worldList');
   if (!worlds.length) {
-    el.innerHTML = '<div class="empty"><div class="icon">🌍</div>henüz dünya yok<br><span style="font-size:11px">sunucuyu en az bir kez başlat</span></div>';
+    el.innerHTML = `<div class="empty"><div class="icon">🌍</div>${T.world_empty}<br><span style="font-size:11px">${T.world_empty_hint}</span></div>`;
     return;
   }
   el.innerHTML = worlds.map(w => `
@@ -73,10 +73,10 @@ function renderWorlds() {
       <div class="world-emoji">🌍</div>
       <div class="world-info">
         <div class="world-name">${escapeHtml(w.name)}</div>
-        <div class="world-meta">${escapeHtml(w.mode)} · ${w.sizeHuman} · son: ${w.modified}</div>
+        <div class="world-meta">${escapeHtml(w.mode)} · ${w.sizeHuman} · ${T.world_last}${w.modified}</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="backupWorld('${escapeAttr(w.mode)}', '${escapeAttr(w.name)}')">📦 Yedekle</button>
-      <button class="btn btn-red btn-sm" onclick="askDelete('${escapeAttr(w.mode)}', '${escapeAttr(w.name)}')">🗑 Sil</button>
+      <button class="btn btn-ghost btn-sm" onclick="backupWorld('${escapeAttr(w.mode)}', '${escapeAttr(w.name)}')">${T.world_backup_btn}</button>
+      <button class="btn btn-red btn-sm" onclick="askDelete('${escapeAttr(w.mode)}', '${escapeAttr(w.name)}')">${T.world_delete_btn}</button>
     </div>
   `).join('');
 }
@@ -84,7 +84,7 @@ function renderWorlds() {
 function renderBackups() {
   const el = document.getElementById('backupList');
   if (!backups.length) {
-    el.innerHTML = '<div class="empty">yedek yok</div>';
+    el.innerHTML = '<div class="empty">' + T.world_no_backups + '</div>';
     return;
   }
   el.innerHTML = backups.map(b => `
@@ -94,14 +94,14 @@ function renderBackups() {
         <div class="world-name">${escapeHtml(b.name)}</div>
         <div class="world-meta">${b.sizeHuman} · ${b.modified}</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="restoreBackup('${escapeAttr(b.name)}')">↺ Geri Yükle</button>
+      <button class="btn btn-ghost btn-sm" onclick="restoreBackup('${escapeAttr(b.name)}')">${T.world_restore_btn}</button>
       <button class="btn btn-red btn-sm" onclick="deleteBackup('${escapeAttr(b.name)}')">🗑</button>
     </div>
   `).join('');
 }
 
 async function backupWorld(mode, name) {
-  toast('Yedekleniyor...', 'warn');
+  toast(T.world_backing_up, 'warn');
   const r = await fetch('/world/api/backup', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -109,10 +109,10 @@ async function backupWorld(mode, name) {
   });
   const d = await r.json();
   if (d.success) {
-    toast('✓ Yedek oluşturuldu: ' + d.backup, 'ok');
+    toast(T.world_backed_up + d.backup, 'ok');
     loadBackups();
   } else {
-    toast('Hata: ' + d.error, 'err');
+    toast(T.world_error + d.error, 'err');
   }
 }
 
@@ -120,9 +120,9 @@ let pendingDelete = null;
 
 function askDelete(mode, name) {
   pendingDelete = {mode, name};
-  document.getElementById('confirmTitle').textContent = 'Dünyayı sil?';
-  document.getElementById('confirmText').textContent = `"${name}" dünyası silinecek. Bu geri alınamaz!`;
-  document.getElementById('confirmBtn').textContent = 'Sil';
+  document.getElementById('confirmTitle').textContent = T.world_delete_title;
+  document.getElementById('confirmText').textContent = fmt(T.world_delete_text, {name});
+  document.getElementById('confirmBtn').textContent = T.world_delete_confirm_btn;
   document.getElementById('confirmBtn').onclick = doDelete;
   document.getElementById('confirmModal').classList.add('show');
 }
@@ -142,16 +142,16 @@ async function doDelete() {
   });
   const d = await r.json();
   if (d.success) {
-    toast('✓ Dünya silindi' + (d.backup ? ' (yedek: ' + d.backup + ')' : ''), 'ok');
+    toast(T.world_deleted + (d.backup ? T.world_deleted_backup + d.backup + ')' : ''), 'ok');
     closeConfirm();
     loadAll();
   } else {
-    toast('Hata: ' + d.error, 'err');
+    toast(T.world_error + d.error, 'err');
   }
 }
 
 async function restoreBackup(name) {
-  if (!confirm('Yedek geri yüklenecek. Mevcut aynı isimli dünya üzerine yazılır. Emin misin?')) return;
+  if (!confirm(T.world_restore_confirm)) return;
   const r = await fetch('/world/api/restore', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -159,15 +159,15 @@ async function restoreBackup(name) {
   });
   const d = await r.json();
   if (d.success) {
-    toast('✓ Geri yüklendi', 'ok');
+    toast(T.world_restored, 'ok');
     loadAll();
   } else {
-    toast('Hata: ' + d.error, 'err');
+    toast(T.world_error + d.error, 'err');
   }
 }
 
 async function deleteBackup(name) {
-  if (!confirm('Yedek dosyası silinecek. Emin misin?')) return;
+  if (!confirm(T.world_backup_delete_confirm)) return;
   const r = await fetch('/world/api/delete-backup', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -175,10 +175,10 @@ async function deleteBackup(name) {
   });
   const d = await r.json();
   if (d.success) {
-    toast('✓ Yedek silindi', 'ok');
+    toast(T.world_backup_deleted, 'ok');
     loadBackups();
   } else {
-    toast('Hata: ' + d.error, 'err');
+    toast(T.world_error + d.error, 'err');
   }
 }
 

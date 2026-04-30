@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Terminal - PZ Panel{% endblock %}
+{% block title %}{{ t.terminal_title }} - PZ Panel{% endblock %}
 {% block content %}
-<div class="page-title">Sunucu Terminali</div>
-<div class="page-subtitle">// canlı log + komut gönderme</div>
+<div class="page-title">{{ t.terminal_title }}</div>
+<div class="page-subtitle">{{ t.terminal_subtitle }}</div>
 
 <div class="card" style="padding:0; overflow:hidden">
   <div style="display:flex; gap:8px; padding:12px 16px; border-bottom:1px solid var(--border); align-items:center">
-    <button class="btn btn-ghost btn-sm" onclick="srvAction('start')">▶ Başlat</button>
-    <button class="btn btn-ghost btn-sm btn-stop" onclick="srvAction('stop')">■ Durdur</button>
-    <button class="btn btn-ghost btn-sm" onclick="srvAction('restart')">↺ Yeniden</button>
+    <button class="btn btn-ghost btn-sm" onclick="srvAction('start')">{{ t.terminal_start_btn }}</button>
+    <button class="btn btn-ghost btn-sm btn-stop" onclick="srvAction('stop')">{{ t.terminal_stop_btn }}</button>
+    <button class="btn btn-ghost btn-sm" onclick="srvAction('restart')">{{ t.terminal_restart_btn }}</button>
     <span style="flex:1"></span>
-    <button class="btn btn-ghost btn-sm" onclick="clearTerm()">🧹 Temizle</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearTerm()">{{ t.terminal_clear_btn }}</button>
     <label style="font-family:var(--mono); font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px">
-      <input type="checkbox" id="autoScroll" checked style="width:auto"/> auto-scroll
+      <input type="checkbox" id="autoScroll" checked style="width:auto"/> {{ t.terminal_auto_scroll }}
     </label>
   </div>
 
@@ -31,17 +31,15 @@
 
   <div style="display:flex; border-top:1px solid var(--border); background:var(--surface)">
     <span style="font-family: var(--mono); padding: 0 14px; color: var(--accent); display:flex; align-items:center; font-size:14px">›</span>
-    <input type="text" id="cmdInput" placeholder="komut gir... (örn: players, save, help, quit)"
+    <input type="text" id="cmdInput" placeholder="{{ t.terminal_cmd_placeholder }}"
            style="flex:1; border:none; border-radius:0; background:transparent; padding:14px 0; font-family: var(--mono); font-size:13px"
            onkeydown="if(event.key==='Enter')sendCmd(); if(event.key==='ArrowUp')historyUp(); if(event.key==='ArrowDown')historyDown()"/>
-    <button class="btn btn-primary" style="border-radius:0" onclick="sendCmd()">Gönder</button>
+    <button class="btn btn-primary" style="border-radius:0" onclick="sendCmd()">{{ t.terminal_send_btn }}</button>
   </div>
 </div>
 
-<div class="hint" style="margin-top:12px">
-  💡 Sık kullanılan komutlar: <b>players</b> · <b>save</b> · <b>help</b> · <b>quit</b> · <b>servermsg "mesaj"</b> · <b>kickuser KullaniciAdi</b>
-</div>
-<div class="hint">⚠️ Terminal sadece panel üzerinden başlatılan sunucularda çalışır. Manuel başlatılan sunucu için "Yeniden Başlat" tıkla.</div>
+<div class="hint" style="margin-top:12px">{{ t.terminal_commands_hint|safe }}</div>
+<div class="hint">{{ t.terminal_warning }}</div>
 {% endblock %}
 
 {% block scripts %}
@@ -55,7 +53,6 @@ let evtSource = null;
 
 function appendLine(text) {
   const div = document.createElement('div');
-  // Renk kodları (basit syntax highlighting)
   let cls = '';
   if (/error|exception|fail/i.test(text)) cls = 'color:#f53a3a';
   else if (/warning|warn/i.test(text)) cls = 'color:#f5c83a';
@@ -66,7 +63,6 @@ function appendLine(text) {
   term.appendChild(div);
   if (autoScroll.checked) term.scrollTop = term.scrollHeight;
 
-  // Performans için en fazla 3000 satır tut
   if (term.children.length > 3000) {
     term.removeChild(term.firstChild);
   }
@@ -89,9 +85,7 @@ function startStream() {
       }
     } catch(err) {}
   };
-  evtSource.onerror = () => {
-    // Otomatik reconnect dener (EventSource yapısı)
-  };
+  evtSource.onerror = () => {};
 }
 
 async function sendCmd() {
@@ -102,7 +96,6 @@ async function sendCmd() {
   historyIdx = history.length;
   cmdInput.value = '';
 
-  // Görsel feedback
   appendLine('› ' + cmd);
 
   const r = await fetch('/api/server/command', {

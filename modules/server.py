@@ -2,7 +2,7 @@
 import json
 import time
 import queue as queue_mod
-from flask import Blueprint, jsonify, request, render_template, Response, stream_with_context
+from flask import Blueprint, jsonify, request, render_template, Response, stream_with_context, g
 from config import is_server_running
 from modules.server_manager import manager
 
@@ -44,7 +44,7 @@ def command():
     data = request.json or {}
     cmd = data.get("cmd", "").strip()
     if not cmd:
-        return jsonify({"success": False, "message": "Boş komut"})
+        return jsonify({"success": False, "message": g.t["err_empty_command"]})
     success, msg = manager.send_command(cmd)
     return jsonify({"success": success, "message": msg})
 
