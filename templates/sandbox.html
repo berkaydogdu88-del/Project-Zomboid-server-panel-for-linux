@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block title %}Sandbox - PZ Panel{% endblock %}
+{% block content %}
+<div class="page-title">Sandbox Settings</div>
+<div class="page-subtitle">// in-game style settings, parsed directly from your SandboxVars.lua</div>
+
+<div class="card">
+  <div class="row" style="margin-bottom:14px; gap:8px; align-items:center; flex-wrap:wrap">
+    <input type="text" id="searchBox" placeholder="🔍 Search settings..." style="flex:1; min-width:200px" oninput="filterAll()"/>
+    <span class="badge" id="dirtyCount" style="display:none">0 changes</span>
+    <button class="btn btn-ghost btn-sm" onclick="discardChanges()" id="discardBtn" style="display:none">Discard</button>
+    <button class="btn btn-warn btn-sm" onclick="resetAllToDefault()">↺ Reset Defaults</button>
+    <button class="btn btn-primary" onclick="saveAll()" id="saveBtn">💾 Save All</button>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="content">
+    <div class="empty"><span class="spin">⟳</span> Loading...</div>
+  </div>
+
+  <div class="hint" style="margin-top:14px">⚠️ Changes take effect after server restart.</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let groups = [];
+let activeGroup = null;
+let dirty = {};
+let originalValues = {};
+let flatGroupIds = new Set();
+
+async function loadSandbox() {
+  try {
+    const r = await fetch('/sandbox/api/get');
+    const d = await r.json();
+    if (!d.success) {
+      document.getElementById('content').innerHTML = '<div class="empty">' + escapeHtml(d.error) + '</div>';
+      return;
+    }
+    groups = d.groups;
+    flatGroupIds = new Set(d.flatGroups || []);
+    // store originals
+    originalValues = {};
+    groups.forEach(g => g.items.forEach(it => {
+      const fk = fullKey(g.id, it.key);
+      originalValues[fk] = it.value;
+    }));
+    if (!activeGroup && groups.length) activeGroup = groups[0].id;
+    renderTabs();
+    renderContent();
+    updateDirtyCount();
+  } catch(e) {
+    document.getElementById('content').innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
+  }
+}
+
+function fullKey(groupId, key) {
+  return (groupId === 'General' || flatGroupIds.has(groupId)) ? key : groupId + '.' + key;
+}
+
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = groups.map(g => {
+    const dirtyInGroup = g.items.filter(it => dirty.hasOwnProperty(fullKey(g.id, it.key))).length;
+    return `<div class="tab ${g.id === activeGroup ? 'active' : ''}" onclick="setTab('${g.id}')">
+      ${escapeHtml(g.label)}${dirtyInGroup ? ` <span class="badge warn" style="margin-left:6px">${dirtyInGroup}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function setTab(id) {
+  activeGroup = id;
+  renderTabs();
+  renderContent();
+}
+
+function renderContent() {
+  const grp = groups.find(g => g.id === activeGroup);
+  if (!grp) { document.getElementById('content').innerHTML = ''; return; }
+
+  const filter = document.getElementById('searchBox').value.toLowerCase();
+  const items = grp.items.filter(it => {
+    if (!filter) return true;
+    return it.key.toLowerCase().includes(filter) || (it.description || '').toLowerCase().includes(filter);
+  });
+
+  if (!items.length) {
+    document.getElementById('content').innerHTML = '<div class="empty">No matching settings</div>';
+    return;
+  }
+
+  document.getElementById('content').innerHTML = items.map(item => {
+    const fk = fullKey(grp.id, item.key);
+    const isDirty = dirty.hasOwnProperty(fk);
+    const cur = isDirty ? dirty[fk] : item.value;
+
+    let control;
+    if (typeof item.value === 'boolean') {
+      control = `<select onchange="setDirty('${escapeAttr(fk)}', this.value === 'true')">
+        <option value="true" ${cur === true ? 'selected' : ''}>True</option>
+        <option value="false" ${cur === false ? 'selected' : ''}>False</option>
+      </select>`;
+    } else if (typeof item.value === 'string') {
+      control = `<input type="text" value="${escapeAttr(cur)}" onchange="setDirty('${escapeAttr(fk)}', this.value)"/>`;
+    } else {
+      // number
+      const minAttr = item.min !== null ? `min="${item.min}"` : '';
+      const maxAttr = item.max !== null ? `max="${item.max}"` : '';
+      const stepAttr = (typeof item.value === 'number' && Number.isInteger(item.value)) ? 'step="1"' : 'step="any"';
+      control = `<input type="number" ${minAttr} ${maxAttr} ${stepAttr} value="${cur}" onchange="setDirty('${escapeAttr(fk)}', this.value)"/>`;
+    }
+
+    let metaParts = [];
+    if (item.default !== null) metaParts.push(`default: ${item.default}`);
+    if (item.min !== null) metaParts.push(`min: ${item.min}`);
+    if (item.max !== null) metaParts.push(`max: ${item.max}`);
+    const metaLine = metaParts.length ? `<div class="sb-key">${escapeHtml(item.key)} · ${metaParts.join(' · ')}</div>` : `<div class="sb-key">${escapeHtml(item.key)}</div>`;
+
+    return `
+      <div class="sb-row" ${isDirty ? 'style="border:1px solid var(--warn)"' : ''}>
+        <div>
+          <div class="sb-label">${escapeHtml(formatLabel(item.key))} ${isDirty ? '<span class="badge warn">modified</span>' : ''}</div>
+          ${item.description ? `<div style="font-size:12px; color:var(--text); opacity:0.7; margin-top:4px">${escapeHtml(item.description)}</div>` : ''}
+          ${metaLine}
+        </div>
+        <div style="display:flex; gap:6px; align-items:center">
+          ${control}
+          ${item.default !== null ? `<button class="btn btn-ghost btn-sm" title="Reset to default" onclick="resetOne('${escapeAttr(fk)}', ${JSON.stringify(item.default)})">↺</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function formatLabel(key) {
+  // CamelCase → "Camel Case"
+  return key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
+}
+
+function setDirty(key, value) {
+  // Compare to original — if same, remove from dirty
+  if (originalValues[key] === value || String(originalValues[key]) === String(value)) {
+    delete dirty[key];
+  } else {
+    dirty[key] = value;
+  }
+  renderContent();
+  renderTabs();
+  updateDirtyCount();
+}
+
+function resetOne(key, defaultVal) {
+  setDirty(key, defaultVal);
+}
+
+async function resetAllToDefault() {
+  const withDefaults = groups.reduce((n, g) => n + g.items.filter(it => it.default !== null).length, 0);
+  if (!withDefaults) { toast('No defaults defined in this sandbox file', 'warn'); return; }
+
+  const pendingCount = Object.keys(dirty).length;
+  const confirmMsg = pendingCount
+    ? `Reset all ${withDefaults} settings with known defaults to their default values and save immediately?\n\nThis will also discard your ${pendingCount} unsaved change(s).`
+    : `Reset all ${withDefaults} settings with known defaults to their default values and save immediately?`;
+  if (!confirm(confirmMsg)) return;
+
+  dirty = {};
+  groups.forEach(g => g.items.forEach(it => {
+    if (it.default === null) return;
+    const fk = fullKey(g.id, it.key);
+    if (String(originalValues[fk]) !== String(it.default)) {
+      dirty[fk] = it.default;
+    }
+  }));
+
+  if (!Object.keys(dirty).length) {
+    toast('All settings are already at their default values', 'ok');
+    return;
+  }
+
+  await saveAll();
+}
+
+function discardChanges() {
+  if (!Object.keys(dirty).length) return;
+  if (!confirm('Discard all unsaved changes?')) return;
+  dirty = {};
+  renderContent();
+  renderTabs();
+  updateDirtyCount();
+}
+
+function updateDirtyCount() {
+  const count = Object.keys(dirty).length;
+  const pill = document.getElementById('dirtyCount');
+  const btn = document.getElementById('discardBtn');
+  if (count > 0) {
+    pill.textContent = count + ' change' + (count > 1 ? 's' : '');
+    pill.style.display = '';
+    btn.style.display = '';
+  } else {
+    pill.style.display = 'none';
+    btn.style.display = 'none';
+  }
+}
+
+function filterAll() {
+  renderContent();
+}
+
+async function saveAll() {
+  if (!Object.keys(dirty).length) {
+    toast('No changes to save', 'warn');
+    return;
+  }
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⟳</span> Saving...';
+
+  try {
+    const r = await fetch('/sandbox/api/save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({updates: dirty})
+    });
+    const d = await r.json();
+    if (d.success) {
+      toast('✓ ' + d.count + ' settings saved! Restart server to apply.', 'ok');
+      dirty = {};
+      await loadSandbox();
+    } else {
+      toast('Error: ' + d.error, 'err');
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '💾 Save All';
+}
+
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return String(s == null ? '' : s).replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+loadSandbox();
+</script>
+{% endblock %}

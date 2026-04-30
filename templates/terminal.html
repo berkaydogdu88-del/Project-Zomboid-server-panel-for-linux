@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Terminal - PZ Panel{% endblock %}
+{% block content %}
+<div class="page-title">Sunucu Terminali</div>
+<div class="page-subtitle">// canlı log + komut gönderme</div>
+
+<div class="card" style="padding:0; overflow:hidden">
+  <div style="display:flex; gap:8px; padding:12px 16px; border-bottom:1px solid var(--border); align-items:center">
+    <button class="btn btn-ghost btn-sm" onclick="srvAction('start')">▶ Başlat</button>
+    <button class="btn btn-ghost btn-sm btn-stop" onclick="srvAction('stop')">■ Durdur</button>
+    <button class="btn btn-ghost btn-sm" onclick="srvAction('restart')">↺ Yeniden</button>
+    <span style="flex:1"></span>
+    <button class="btn btn-ghost btn-sm" onclick="clearTerm()">🧹 Temizle</button>
+    <label style="font-family:var(--mono); font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px">
+      <input type="checkbox" id="autoScroll" checked style="width:auto"/> auto-scroll
+    </label>
+  </div>
+
+  <div id="term" style="
+    height: 60vh;
+    background: #050608;
+    color: #d4dce8;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.5;
+    padding: 14px 16px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  "></div>
+
+  <div style="display:flex; border-top:1px solid var(--border); background:var(--surface)">
+    <span style="font-family: var(--mono); padding: 0 14px; color: var(--accent); display:flex; align-items:center; font-size:14px">›</span>
+    <input type="text" id="cmdInput" placeholder="komut gir... (örn: players, save, help, quit)"
+           style="flex:1; border:none; border-radius:0; background:transparent; padding:14px 0; font-family: var(--mono); font-size:13px"
+           onkeydown="if(event.key==='Enter')sendCmd(); if(event.key==='ArrowUp')historyUp(); if(event.key==='ArrowDown')historyDown()"/>
+    <button class="btn btn-primary" style="border-radius:0" onclick="sendCmd()">Gönder</button>
+  </div>
+</div>
+
+<div class="hint" style="margin-top:12px">
+  💡 Sık kullanılan komutlar: <b>players</b> · <b>save</b> · <b>help</b> · <b>quit</b> · <b>servermsg "mesaj"</b> · <b>kickuser KullaniciAdi</b>
+</div>
+<div class="hint">⚠️ Terminal sadece panel üzerinden başlatılan sunucularda çalışır. Manuel başlatılan sunucu için "Yeniden Başlat" tıkla.</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const term = document.getElementById('term');
+const cmdInput = document.getElementById('cmdInput');
+const autoScroll = document.getElementById('autoScroll');
+let history = [];
+let historyIdx = -1;
+let evtSource = null;
+
+function appendLine(text) {
+  const div = document.createElement('div');
+  // Renk kodları (basit syntax highlighting)
+  let cls = '';
+  if (/error|exception|fail/i.test(text)) cls = 'color:#f53a3a';
+  else if (/warning|warn/i.test(text)) cls = 'color:#f5c83a';
+  else if (/connected|joined|started|ready/i.test(text)) cls = 'color:#3af5a0';
+  else if (/disconnected|left|stopped|closing/i.test(text)) cls = 'color:#5a6478';
+  if (cls) div.setAttribute('style', cls);
+  div.textContent = text;
+  term.appendChild(div);
+  if (autoScroll.checked) term.scrollTop = term.scrollHeight;
+
+  // Performans için en fazla 3000 satır tut
+  if (term.children.length > 3000) {
+    term.removeChild(term.firstChild);
+  }
+}
+
+function clearTerm() {
+  term.innerHTML = '';
+}
+
+function startStream() {
+  if (evtSource) evtSource.close();
+  evtSource = new EventSource('/api/server/stream');
+  evtSource.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'clear') {
+        clearTerm();
+      } else if (msg.type === 'line') {
+        appendLine(msg.text);
+      }
+    } catch(err) {}
+  };
+  evtSource.onerror = () => {
+    // Otomatik reconnect dener (EventSource yapısı)
+  };
+}
+
+async function sendCmd() {
+  const cmd = cmdInput.value.trim();
+  if (!cmd) return;
+  history.push(cmd);
+  if (history.length > 100) history.shift();
+  historyIdx = history.length;
+  cmdInput.value = '';
+
+  // Görsel feedback
+  appendLine('› ' + cmd);
+
+  const r = await fetch('/api/server/command', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cmd})
+  });
+  const d = await r.json();
+  if (!d.success) {
+    appendLine('[panel] ' + d.message);
+  }
+}
+
+function historyUp() {
+  if (history.length === 0) return;
+  if (historyIdx > 0) historyIdx--;
+  cmdInput.value = history[historyIdx] || '';
+  setTimeout(() => cmdInput.setSelectionRange(cmdInput.value.length, cmdInput.value.length), 0);
+}
+
+function historyDown() {
+  if (historyIdx < history.length - 1) {
+    historyIdx++;
+    cmdInput.value = history[historyIdx];
+  } else {
+    historyIdx = history.length;
+    cmdInput.value = '';
+  }
+}
+
+startStream();
+cmdInput.focus();
+</script>
+{% endblock %}

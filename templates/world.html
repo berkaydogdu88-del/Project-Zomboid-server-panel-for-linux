@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Dünya - PZ Panel{% endblock %}
+{% block content %}
+<div class="page-title">Dünya Yönetimi</div>
+<div class="page-subtitle">// dünyaları yedekle, sil, geri yükle</div>
+
+<div class="sec-label">// dünyalar</div>
+<div class="card">
+  <div class="list" id="worldList">
+    <div class="empty"><span class="spin">⟳</span> yükleniyor...</div>
+  </div>
+</div>
+
+<div class="sec-label">// yedekler</div>
+<div class="card">
+  <div class="list" id="backupList">
+    <div class="empty">yedek yok</div>
+  </div>
+</div>
+
+<!-- Sil onayı modalı -->
+<div class="modal-bg" id="confirmModal">
+  <div class="modal">
+    <h2 id="confirmTitle">Emin misin?</h2>
+    <p id="confirmText"></p>
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px">
+      <input type="checkbox" id="autoBackup" checked style="width:auto"/>
+      <label for="autoBackup" style="font-family:var(--mono); font-size:12px; color:var(--muted)">Silmeden önce yedek al</label>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">İptal</button>
+      <button class="btn btn-red" id="confirmBtn">Sil</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let worlds = [];
+let backups = [];
+
+async function loadAll() {
+  await Promise.all([loadWorlds(), loadBackups()]);
+}
+
+async function loadWorlds() {
+  try {
+    const r = await fetch('/world/api/worlds');
+    const d = await r.json();
+    worlds = d.worlds || [];
+    renderWorlds();
+  } catch(e) {}
+}
+
+async function loadBackups() {
+  try {
+    const r = await fetch('/world/api/backups');
+    const d = await r.json();
+    backups = d.backups || [];
+    renderBackups();
+  } catch(e) {}
+}
+
+function renderWorlds() {
+  const el = document.getElementById('worldList');
+  if (!worlds.length) {
+    el.innerHTML = '<div class="empty"><div class="icon">🌍</div>henüz dünya yok<br><span style="font-size:11px">sunucuyu en az bir kez başlat</span></div>';
+    return;
+  }
+  el.innerHTML = worlds.map(w => `
+    <div class="world-item">
+      <div class="world-emoji">🌍</div>
+      <div class="world-info">
+        <div class="world-name">${escapeHtml(w.name)}</div>
+        <div class="world-meta">${escapeHtml(w.mode)} · ${w.sizeHuman} · son: ${w.modified}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="backupWorld('${escapeAttr(w.mode)}', '${escapeAttr(w.name)}')">📦 Yedekle</button>
+      <button class="btn btn-red btn-sm" onclick="askDelete('${escapeAttr(w.mode)}', '${escapeAttr(w.name)}')">🗑 Sil</button>
+    </div>
+  `).join('');
+}
+
+function renderBackups() {
+  const el = document.getElementById('backupList');
+  if (!backups.length) {
+    el.innerHTML = '<div class="empty">yedek yok</div>';
+    return;
+  }
+  el.innerHTML = backups.map(b => `
+    <div class="backup-item">
+      <div class="world-emoji">📦</div>
+      <div class="world-info">
+        <div class="world-name">${escapeHtml(b.name)}</div>
+        <div class="world-meta">${b.sizeHuman} · ${b.modified}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="restoreBackup('${escapeAttr(b.name)}')">↺ Geri Yükle</button>
+      <button class="btn btn-red btn-sm" onclick="deleteBackup('${escapeAttr(b.name)}')">🗑</button>
+    </div>
+  `).join('');
+}
+
+async function backupWorld(mode, name) {
+  toast('Yedekleniyor...', 'warn');
+  const r = await fetch('/world/api/backup', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode, name})
+  });
+  const d = await r.json();
+  if (d.success) {
+    toast('✓ Yedek oluşturuldu: ' + d.backup, 'ok');
+    loadBackups();
+  } else {
+    toast('Hata: ' + d.error, 'err');
+  }
+}
+
+let pendingDelete = null;
+
+function askDelete(mode, name) {
+  pendingDelete = {mode, name};
+  document.getElementById('confirmTitle').textContent = 'Dünyayı sil?';
+  document.getElementById('confirmText').textContent = `"${name}" dünyası silinecek. Bu geri alınamaz!`;
+  document.getElementById('confirmBtn').textContent = 'Sil';
+  document.getElementById('confirmBtn').onclick = doDelete;
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmModal').classList.remove('show');
+  pendingDelete = null;
+}
+
+async function doDelete() {
+  if (!pendingDelete) return;
+  const createBackup = document.getElementById('autoBackup').checked;
+  const r = await fetch('/world/api/delete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({...pendingDelete, createBackup})
+  });
+  const d = await r.json();
+  if (d.success) {
+    toast('✓ Dünya silindi' + (d.backup ? ' (yedek: ' + d.backup + ')' : ''), 'ok');
+    closeConfirm();
+    loadAll();
+  } else {
+    toast('Hata: ' + d.error, 'err');
+  }
+}
+
+async function restoreBackup(name) {
+  if (!confirm('Yedek geri yüklenecek. Mevcut aynı isimli dünya üzerine yazılır. Emin misin?')) return;
+  const r = await fetch('/world/api/restore', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({backup: name})
+  });
+  const d = await r.json();
+  if (d.success) {
+    toast('✓ Geri yüklendi', 'ok');
+    loadAll();
+  } else {
+    toast('Hata: ' + d.error, 'err');
+  }
+}
+
+async function deleteBackup(name) {
+  if (!confirm('Yedek dosyası silinecek. Emin misin?')) return;
+  const r = await fetch('/world/api/delete-backup', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({backup: name})
+  });
+  const d = await r.json();
+  if (d.success) {
+    toast('✓ Yedek silindi', 'ok');
+    loadBackups();
+  } else {
+    toast('Hata: ' + d.error, 'err');
+  }
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return String(s).replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+loadAll();
+</script>
+{% endblock %}

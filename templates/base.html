@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}PZ Panel{% endblock %}</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <div class="logo">PZ<span>/</span>PANEL</div>
+  <nav>
+    <a href="/mods/" class="{% if request.path.startswith('/mods') %}active{% endif %}">// Modlar</a>
+    <a href="/sandbox/" class="{% if request.path.startswith('/sandbox') %}active{% endif %}">// Sandbox</a>
+    <a href="/world/" class="{% if request.path.startswith('/world') %}active{% endif %}">// Dünya</a>
+    <a href="/terminal" class="{% if request.path.startswith('/terminal') %}active{% endif %}">// Terminal</a>
+  </nav>
+  <div class="status-pill">
+    <div class="dot" id="srvDot"></div>
+    <span id="srvTxt">kontrol ediliyor</span>
+  </div>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + (type || 'ok') + ' show';
+  setTimeout(() => el.className = 'toast', 3500);
+}
+
+async function checkSrv() {
+  try {
+    const r = await fetch('/api/server/status');
+    const d = await r.json();
+    document.getElementById('srvDot').className = 'dot' + (d.running ? ' on' : '');
+    document.getElementById('srvTxt').textContent = d.running ? 'çalışıyor' : 'kapalı';
+  } catch(e) {}
+}
+
+async function srvAction(action) {
+  const r = await fetch('/api/server/' + action, { method: 'POST' });
+  const d = await r.json();
+  toast(d.message, d.success ? 'ok' : 'err');
+  setTimeout(checkSrv, 2500);
+}
+
+checkSrv();
+setInterval(checkSrv, 8000);
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
