@@ -16,6 +16,16 @@ A web-based control panel for managing a Project Zomboid Dedicated Server on Lin
 - **World Management** — List all save files, create compressed `.tar.gz` backups, restore from a backup, and delete worlds safely
 - **Real-time Terminal** — Start, stop, and restart the server; stream live logs directly in the browser; send console commands without SSH
 
+## Screenshots
+
+| Mods | Sandbox |
+|:---:|:---:|
+| ![Mod Management](screenshots/mods.png) | ![Sandbox Settings](screenshots/sandbox.png) |
+
+| World | Terminal |
+|:---:|:---:|
+| ![World Management](screenshots/world.png) | ![Server Terminal](screenshots/terminal.png) |
+
 ## Prerequisites
 
 - Linux (Ubuntu/Debian recommended)
@@ -252,6 +262,16 @@ Linux üzerinde bir Project Zomboid Dedicated Server'ı yönetmek için web taba
 - **Sandbox Yapılandırması** — Her `SandboxVars.lua` ayarını (vanilla + mod ayarları) dosyalara dokunmadan sekmeli arayüz üzerinden düzenleme
 - **Dünya Yönetimi** — Tüm kayıt dosyalarını listeleme, sıkıştırılmış `.tar.gz` yedekler oluşturma, yedekten geri yükleme ve dünyaları güvenli silme
 - **Gerçek Zamanlı Terminal** — Sunucuyu başlatma, durdurma ve yeniden başlatma; canlı logları tarayıcıda izleme; SSH olmadan konsol komutları gönderme
+
+## Ekran Görüntüleri
+
+| Modlar | Sandbox |
+|:---:|:---:|
+| ![Mod Yönetimi](screenshots/mods.png) | ![Sandbox Ayarları](screenshots/sandbox.png) |
+
+| Dünya | Terminal |
+|:---:|:---:|
+| ![Dünya Yönetimi](screenshots/world.png) | ![Sunucu Terminali](screenshots/terminal.png) |
 
 ## Gereksinimler
 
