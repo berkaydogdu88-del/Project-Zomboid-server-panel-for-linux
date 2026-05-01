@@ -2,104 +2,475 @@
 
 A web-based control panel for managing a Project Zomboid Dedicated Server on Linux. Manage mods, sandbox settings, game worlds, and the server process — all from your browser.
 
+> **Language / Dil:** [English](#english) · [Türkçe](#türkçe)
+
 ---
+
+<a name="english"></a>
+# English
 
 ## Features
 
-- **Mod Management** — Search Steam Workshop, auto-resolve dependencies, drag-and-drop load order
-- **Sandbox Configuration** — Edit `SandboxVars.lua` settings through a clean UI
-- **World Management** — Backup, restore, and delete save files
-- **Real-time Terminal** — Start/stop/restart the server, stream live logs, send server commands
+- **Mod Management** — Search Steam Workshop by keyword or URL, auto-resolve all dependencies, drag-and-drop load order reordering, and category filtering
+- **Sandbox Configuration** — Browse and edit every `SandboxVars.lua` setting (vanilla + mod settings) through a clean tabbed UI without touching any files manually
+- **World Management** — List all save files, create compressed `.tar.gz` backups, restore from a backup, and delete worlds safely
+- **Real-time Terminal** — Start, stop, and restart the server; stream live logs directly in the browser; send console commands without SSH
 
-## Requirements
+## Prerequisites
 
-- Linux
-- Python 3
-- Flask (`pip install flask`)
-- Project Zomboid Dedicated Server installed via Steam
+- Linux (Ubuntu/Debian recommended)
+- Python 3.8+
+- ~6 GB free disk space (for the PZ dedicated server)
+- Internet connection (for SteamCMD and mod downloads)
 
-## Installation
+---
+
+## Setup Guide
+
+### Step 1 — Install SteamCMD
+
+SteamCMD is the command-line tool used to download and update dedicated game servers from Steam.
+
+**Ubuntu / Debian:**
+```bash
+sudo add-apt-repository multiverse
+sudo dpkg --add-architecture i386
+sudo apt update
+sudo apt install steamcmd
+```
+
+**Other distros (manual install):**
+```bash
+mkdir ~/steamcmd && cd ~/steamcmd
+curl -O https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
+tar -xvzf steamcmd_linux.tar.gz
+```
+Use `~/steamcmd/steamcmd.sh` instead of `steamcmd` in the commands below.
+
+---
+
+### Step 2 — Download the Project Zomboid Dedicated Server
+
+The PZ Dedicated Server is free to download (no game license needed). Its Steam App ID is **380870**.
+
+```bash
+steamcmd \
+  +login anonymous \
+  +force_install_dir "$HOME/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server" \
+  +app_update 380870 validate \
+  +quit
+```
+
+This downloads roughly **5–6 GB**. To update the server later, run the same command again.
+
+---
+
+### Step 3 — First Server Run (generates config files)
+
+The panel needs `servertest.ini` and `servertest_SandboxVars.lua` to exist before it can work. These files are created automatically on the first server launch.
+
+```bash
+cd "$HOME/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server"
+bash start-server.sh
+```
+
+Wait until you see output like `Server started` or `LuaManager: Loading` in the terminal, then press **Ctrl+C** to stop it. The config files will now be at:
+
+```
+~/Zomboid/Server/servertest.ini
+~/Zomboid/Server/servertest_SandboxVars.lua
+```
+
+> If the server asks you to set an admin password on first run, go ahead and set one — you can always change it later.
+
+---
+
+### Step 4 — Install the Panel
 
 ```bash
 git clone https://github.com/berkaydogdu88-del/Project-Zomboid-server-panel-for-linux.git
 cd Project-Zomboid-server-panel-for-linux
-pip install flask
+pip install -r requirements.txt
+```
+
+---
+
+### Step 5 — Configure Paths
+
+Open `config.py` and verify that the paths match your system. The defaults work for a standard SteamCMD install:
+
+| Variable | Default path | Description |
+|---|---|---|
+| `SERVER_DIR` | `~/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server` | Where `start-server.sh` lives |
+| `ZOMBOID_DIR` | `~/Zomboid` | Game data directory (created by the server on first run) |
+| `INI_PATH` | `~/Zomboid/Server/servertest.ini` | Main server config |
+| `SANDBOX_PATH` | `~/Zomboid/Server/servertest_SandboxVars.lua` | Sandbox / difficulty settings |
+| `SAVES_DIR` | `~/Zomboid/Saves` | Player save files |
+| `BACKUP_DIR` | `~/Zomboid/Backups` | Where panel backups are stored |
+
+If you used a different install directory for SteamCMD, update `SERVER_DIR` accordingly. Everything else derives from `ZOMBOID_DIR`, which is where the game writes its data regardless of where the server is installed.
+
+---
+
+### Step 6 — Run the Panel
+
+```bash
 python3 app.py
 ```
 
-Then open your browser at: **http://localhost:8621**
+Open your browser at: **http://localhost:8621**
 
-## Configuration
+The panel runs on port `8621` by default. To reach it from another machine on your local network, use your machine's local IP (e.g. `http://192.168.1.x:8621`).
 
-Edit `config.py` to set the correct paths for your system:
+---
 
-| Variable | Description |
+## Sharing Over the Internet with ZeroTier
+
+ZeroTier creates a virtual private network that lets your friends connect to your server as if they were on the same local network — no port forwarding or exposing your real IP required.
+
+### 1. Install ZeroTier on the host machine
+
+```bash
+curl -s https://install.zerotier.com | sudo bash
+sudo systemctl enable zerotier-one
+sudo systemctl start zerotier-one
+```
+
+### 2. Create a network
+
+Go to [my.zerotier.com](https://my.zerotier.com), sign in (free), and click **Create A Network**. Note the **Network ID** (a 16-character hex string like `1c33c1ced0a12345`).
+
+### 3. Join the network on the host machine
+
+```bash
+sudo zerotier-cli join <your-network-id>
+```
+
+Back on the ZeroTier Central dashboard, find your machine under **Members** and tick **Auth** to authorize it. Your machine will then be assigned a ZeroTier IP.
+
+### 4. Find your ZeroTier IP
+
+```bash
+sudo zerotier-cli listnetworks
+```
+
+Look for the `IP/s` column — it will show something like `10.147.20.x`. This is the IP your friends will use to connect.
+
+### 5. Allow the game ports through the firewall
+
+ZeroTier uses its own virtual network interface (named `zt...`). You need to allow the game ports on that interface:
+
+```bash
+# Find your ZeroTier interface name
+ip link show | grep zt
+
+# Allow PZ ports on that interface (replace ztXXXXXX with your interface name)
+sudo ufw allow in on ztXXXXXX to any port 16261 proto udp comment "PZ game port"
+sudo ufw allow in on ztXXXXXX to any port 16262 proto udp comment "PZ direct connect"
+```
+
+### 6. Start the server
+
+Use the panel terminal tab to start the server, or run `start-server.sh` manually.
+
+### 7. Tell your friends
+
+Your friends need to:
+1. Install ZeroTier: [zerotier.com/download](https://www.zerotier.com/download/)
+2. Join the same network: `zerotier-cli join <your-network-id>` (or use the desktop app)
+3. You authorize them on the ZeroTier Central dashboard (tick **Auth** next to their machine)
+4. Connect in Project Zomboid: **Join → Enter your ZeroTier IP → Port 16261**
+
+> The panel itself (port `8621`) is also accessible to anyone on the ZeroTier network. If you don't want friends controlling the panel, only share the game IP, not the panel URL.
+
+---
+
+## Panel Usage
+
+| Tab | What it does |
 |---|---|
-| `SERVER_DIR` | Path to the PZ Dedicated Server folder |
-| `INI_PATH` | Path to your `servertest.ini` |
-| `SANDBOX_PATH` | Path to `servertest_SandboxVars.lua` |
-| `SAVES_DIR` | Path to `~/.Zomboid/Saves/` |
-| `BACKUP_DIR` | Where world backups are stored |
+| **Terminal** | Start/stop/restart the server. Displays live server logs. Type commands into the input box to send them directly to the server (e.g. `servermsg "Hello"`, `adduser`, `chopper`). |
+| **Mods** | Search Steam Workshop, view mod details, add mods with auto-resolved dependencies, drag rows to reorder load order, remove mods. |
+| **Sandbox** | Edit all sandbox settings (loot, zombie speed, XP multiplier, etc.) grouped by category. Mod-added settings appear under their own tab. |
+| **World** | View all save files, create/restore/delete backups. The server must be stopped before restoring or deleting a world. |
 
-Default paths assume a standard Steam installation. Adjust if yours differs.
+The interface is available in **English** and **Turkish** — switch via the language selector in the top navigation bar.
+
+---
 
 ## Project Structure
 
 ```
 pz_panel/
-├── app.py               # Entry point
-├── config.py            # Path configuration
+├── app.py                  # Flask entry point, route registration
+├── config.py               # All file paths and server helpers
+├── requirements.txt        # Python dependencies
 ├── modules/
-│   ├── server.py        # Server control routes & SSE streaming
-│   ├── server_manager.py# PTY process manager, log buffer
-│   ├── mods.py          # Mod management & Steam Workshop integration
-│   ├── sandbox.py       # Lua config parser & sandbox settings
-│   └── world.py         # Save/backup management
-├── templates/           # Jinja2 HTML templates
-└── static/              # CSS
+│   ├── server.py           # Server control routes + SSE log streaming
+│   ├── server_manager.py   # PTY process manager, 2000-line log buffer
+│   ├── mods.py             # Steam Workshop search, dependency resolver
+│   ├── sandbox.py          # SandboxVars.lua parser and editor
+│   └── world.py            # Save backup / restore / delete
+├── templates/              # Jinja2 HTML templates (one per tab)
+├── static/style.css        # All frontend styling
+└── translations/
+    ├── en.json             # English UI strings
+    └── tr.json             # Turkish UI strings
 ```
 
 ---
 
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Panel opens but server won't start | Check that `SERVER_DIR` in `config.py` points to the folder containing `start-server.sh`. Run `ls "$HOME/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server"` to verify. |
+| `servertest.ini` not found / Sandbox tab is empty | Run the server once manually (`bash start-server.sh`) to generate the config files, then restart the panel. |
+| Mod tab shows no search results | Check your internet connection. The panel queries the Steam Workshop API directly — no Steam client needed. |
+| Friends can't connect over ZeroTier | Confirm: (1) both sides are authorized in ZeroTier Central, (2) UFW allows UDP 16261 on the ZeroTier interface, (3) the server is actually running (check the Terminal tab). |
+| `ModuleNotFoundError: No module named 'flask'` | Run `pip3 install -r requirements.txt` from the panel directory. |
+| Terminal tab shows no output after server start | The panel uses a PTY — make sure you're running `python3 app.py` as the same Linux user who owns the server install directory. |
+| Port 8621 not reachable from another machine | If UFW is active, run `sudo ufw allow 8621/tcp`. On ZeroTier, add a rule for the `zt...` interface as shown in the ZeroTier section. |
+
+---
+
+## License
+
+MIT
+
+---
+---
+
+<a name="türkçe"></a>
 # Türkçe
 
-Project Zomboid Dedicated Server'ınızı tarayıcıdan yönetmenizi sağlayan bir web paneli.
+Linux üzerinde bir Project Zomboid Dedicated Server'ı yönetmek için web tabanlı bir kontrol paneli. Modları, sandbox ayarlarını, oyun dünyalarını ve sunucu sürecini tamamen tarayıcıdan yönetin.
 
 ## Özellikler
 
-- **Mod Yönetimi** — Steam Workshop'ta arama, bağımlılıkları otomatik çözme, yükleme sırası düzenleme
-- **Sandbox Ayarları** — `SandboxVars.lua` dosyasını arayüz üzerinden düzenleme
-- **Dünya Yönetimi** — Kayıtları yedekleme, geri yükleme ve silme
-- **Gerçek Zamanlı Terminal** — Sunucuyu başlatma/durdurma/yeniden başlatma, canlı log akışı, komut gönderme
+- **Mod Yönetimi** — Steam Workshop'ta anahtar kelime veya URL ile arama, tüm bağımlılıkları otomatik çözme, sürükle-bırak ile yükleme sırası düzenleme ve kategori filtreleme
+- **Sandbox Yapılandırması** — Her `SandboxVars.lua` ayarını (vanilla + mod ayarları) dosyalara dokunmadan sekmeli arayüz üzerinden düzenleme
+- **Dünya Yönetimi** — Tüm kayıt dosyalarını listeleme, sıkıştırılmış `.tar.gz` yedekler oluşturma, yedekten geri yükleme ve dünyaları güvenli silme
+- **Gerçek Zamanlı Terminal** — Sunucuyu başlatma, durdurma ve yeniden başlatma; canlı logları tarayıcıda izleme; SSH olmadan konsol komutları gönderme
 
 ## Gereksinimler
 
-- Linux
-- Python 3
-- Flask (`pip install flask`)
-- Steam üzerinden kurulu Project Zomboid Dedicated Server
+- Linux (Ubuntu/Debian önerilir)
+- Python 3.8+
+- ~6 GB boş disk alanı (PZ dedicated server için)
+- İnternet bağlantısı (SteamCMD ve mod indirmeleri için)
 
-## Kurulum
+---
+
+## Kurulum Kılavuzu
+
+### Adım 1 — SteamCMD Kurulumu
+
+SteamCMD, Steam'den dedicated game server indirip güncellemek için kullanılan komut satırı aracıdır.
+
+**Ubuntu / Debian:**
+```bash
+sudo add-apt-repository multiverse
+sudo dpkg --add-architecture i386
+sudo apt update
+sudo apt install steamcmd
+```
+
+**Diğer dağıtımlar (manuel kurulum):**
+```bash
+mkdir ~/steamcmd && cd ~/steamcmd
+curl -O https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
+tar -xvzf steamcmd_linux.tar.gz
+```
+Aşağıdaki komutlarda `steamcmd` yerine `~/steamcmd/steamcmd.sh` kullanın.
+
+---
+
+### Adım 2 — Project Zomboid Dedicated Server İndirme
+
+PZ Dedicated Server ücretsiz indirilir (oyun lisansına gerek yok). Steam App ID'si **380870**'dir.
+
+```bash
+steamcmd \
+  +login anonymous \
+  +force_install_dir "$HOME/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server" \
+  +app_update 380870 validate \
+  +quit
+```
+
+Bu işlem yaklaşık **5–6 GB** indirir. Sunucuyu güncellemek için aynı komutu tekrar çalıştırın.
+
+---
+
+### Adım 3 — İlk Sunucu Çalıştırma (yapılandırma dosyalarını oluşturur)
+
+Panel çalışmadan önce `servertest.ini` ve `servertest_SandboxVars.lua` dosyalarının var olması gerekir. Bu dosyalar ilk sunucu başlatmada otomatik oluşturulur.
+
+```bash
+cd "$HOME/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server"
+bash start-server.sh
+```
+
+Terminalde `Server started` veya `LuaManager: Loading` gibi bir çıktı görünce **Ctrl+C** ile durdurun. Yapılandırma dosyaları artık şurada olacak:
+
+```
+~/Zomboid/Server/servertest.ini
+~/Zomboid/Server/servertest_SandboxVars.lua
+```
+
+> İlk çalıştırmada sunucu admin şifresi istiyorsa belirleyin — daha sonra değiştirebilirsiniz.
+
+---
+
+### Adım 4 — Paneli Kurma
 
 ```bash
 git clone https://github.com/berkaydogdu88-del/Project-Zomboid-server-panel-for-linux.git
 cd Project-Zomboid-server-panel-for-linux
-pip install flask
+pip install -r requirements.txt
+```
+
+---
+
+### Adım 5 — Yolları Yapılandırma
+
+`config.py` dosyasını açın ve yolların sisteminizle eşleştiğini doğrulayın. Varsayılanlar standart bir SteamCMD kurulumu için geçerlidir:
+
+| Değişken | Varsayılan yol | Açıklama |
+|---|---|---|
+| `SERVER_DIR` | `~/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server` | `start-server.sh` burada bulunur |
+| `ZOMBOID_DIR` | `~/Zomboid` | Oyun veri dizini (ilk çalıştırmada sunucu tarafından oluşturulur) |
+| `INI_PATH` | `~/Zomboid/Server/servertest.ini` | Ana sunucu yapılandırması |
+| `SANDBOX_PATH` | `~/Zomboid/Server/servertest_SandboxVars.lua` | Sandbox / zorluk ayarları |
+| `SAVES_DIR` | `~/Zomboid/Saves` | Oyuncu kayıt dosyaları |
+| `BACKUP_DIR` | `~/Zomboid/Backups` | Panel yedeklerinin kaydedileceği yer |
+
+SteamCMD için farklı bir kurulum dizini kullandıysanız `SERVER_DIR`'i güncelleyin. Diğer her şey `ZOMBOID_DIR`'den türetilir.
+
+---
+
+### Adım 6 — Paneli Çalıştırma
+
+```bash
 python3 app.py
 ```
 
-Tarayıcıdan açın: **http://localhost:8621**
+Tarayıcınızda açın: **http://localhost:8621**
 
-## Yapılandırma
+Panel varsayılan olarak `8621` portunda çalışır. Yerel ağdaki başka bir makineden erişmek için makinenizin yerel IP'sini kullanın (örn. `http://192.168.1.x:8621`).
 
-`config.py` dosyasındaki yolları kendi sisteminize göre düzenleyin:
+---
 
-| Değişken | Açıklama |
+## ZeroTier ile İnternet Üzerinden Paylaşım
+
+ZeroTier, arkadaşlarınızın sunucunuza aynı yerel ağdaymış gibi bağlanmasını sağlayan sanal bir özel ağ oluşturur. Port yönlendirme veya gerçek IP'nizi paylaşma gerekmez.
+
+### 1. Host makinede ZeroTier kurulumu
+
+```bash
+curl -s https://install.zerotier.com | sudo bash
+sudo systemctl enable zerotier-one
+sudo systemctl start zerotier-one
+```
+
+### 2. Ağ oluşturma
+
+[my.zerotier.com](https://my.zerotier.com) adresine gidin, ücretsiz hesap açın ve **Create A Network**'e tıklayın. **Network ID**'yi not edin (`1c33c1ced0a12345` gibi 16 karakterli onaltılık bir dize).
+
+### 3. Host makinede ağa katılma
+
+```bash
+sudo zerotier-cli join <network-id'niz>
+```
+
+ZeroTier Central panosunda **Members** altında makinenizi bulun ve yetkilendirmek için **Auth**'u işaretleyin. Makinenize bir ZeroTier IP'si atanacaktır.
+
+### 4. ZeroTier IP'nizi bulma
+
+```bash
+sudo zerotier-cli listnetworks
+```
+
+`IP/s` sütununa bakın — `10.147.20.x` gibi bir şey göreceksiniz. Arkadaşlarınızın kullanacağı IP budur.
+
+### 5. Güvenlik duvarında oyun portlarını açma
+
+ZeroTier kendi sanal ağ arayüzünü (`zt...` ile başlar) kullanır. Bu arayüzde oyun portlarına izin vermeniz gerekir:
+
+```bash
+# ZeroTier arayüz adınızı bulun
+ip link show | grep zt
+
+# O arayüzde PZ portlarına izin verin (ztXXXXXX'i kendi arayüz adınızla değiştirin)
+sudo ufw allow in on ztXXXXXX to any port 16261 proto udp comment "PZ oyun portu"
+sudo ufw allow in on ztXXXXXX to any port 16262 proto udp comment "PZ doğrudan bağlantı"
+```
+
+### 6. Sunucuyu başlatın
+
+Panel terminal sekmesini kullanarak sunucuyu başlatın veya `start-server.sh` komutunu elle çalıştırın.
+
+### 7. Arkadaşlarınıza anlatın
+
+Arkadaşlarınızın yapması gerekenler:
+1. ZeroTier'ı kurun: [zerotier.com/download](https://www.zerotier.com/download/)
+2. Aynı ağa katılın: `zerotier-cli join <network-id'niz>` (veya masaüstü uygulamasını kullanın)
+3. ZeroTier Central panosunda **Auth**'u işaretleyerek onları yetkilendirin
+4. Project Zomboid'de bağlanın: **Çevrimiçi Oyna → IP adresinizi girin → Port 16261**
+
+> Panelin kendisi (port `8621`) de ZeroTier ağındaki herkese erişilebilir. Arkadaşlarınızın paneli kontrol etmesini istemiyorsanız, yalnızca oyun IP'sini paylaşın, panel URL'sini değil.
+
+---
+
+## Panel Kullanımı
+
+| Sekme | Ne yapar |
 |---|---|
-| `SERVER_DIR` | PZ Dedicated Server klasörünün yolu |
-| `INI_PATH` | `servertest.ini` dosyasının yolu |
-| `SANDBOX_PATH` | `servertest_SandboxVars.lua` dosyasının yolu |
-| `SAVES_DIR` | `~/.Zomboid/Saves/` klasörünün yolu |
-| `BACKUP_DIR` | Dünya yedeklerinin kaydedileceği konum |
+| **Terminal** | Sunucuyu başlatır/durdurur/yeniden başlatır. Canlı sunucu loglarını gösterir. Giriş kutusuna komut yazarak doğrudan sunucuya gönderin (örn. `servermsg "Merhaba"`, `adduser`, `chopper`). |
+| **Modlar** | Steam Workshop'ta arama, mod detaylarını görüntüleme, bağımlılıkları otomatik çözümlenmiş mod ekleme, yükleme sırasını düzenlemek için satırları sürükleme, mod kaldırma. |
+| **Sandbox** | Tüm sandbox ayarlarını (ganimetler, zombi hızı, XP çarpanı vb.) kategoriye göre gruplandırılmış şekilde düzenleme. Mod ekleyen ayarlar kendi sekmeleri altında görünür. |
+| **Dünya** | Tüm kayıt dosyalarını görüntüleme, yedek oluşturma/geri yükleme/silme. Bir dünyayı geri yüklemeden veya silmeden önce sunucunun durdurulması gerekir. |
 
-Varsayılan yollar standart bir Steam kurulumunu varsayar.
+Arayüz **İngilizce** ve **Türkçe** dillerinde mevcuttur — üst gezinme çubuğundaki dil seçici ile değiştirin.
+
+---
+
+## Proje Yapısı
+
+```
+pz_panel/
+├── app.py                  # Flask giriş noktası, rota kaydı
+├── config.py               # Tüm dosya yolları ve sunucu yardımcıları
+├── requirements.txt        # Python bağımlılıkları
+├── modules/
+│   ├── server.py           # Sunucu kontrol rotaları + SSE log akışı
+│   ├── server_manager.py   # PTY süreç yöneticisi, 2000 satır log tamponu
+│   ├── mods.py             # Steam Workshop arama, bağımlılık çözücü
+│   ├── sandbox.py          # SandboxVars.lua ayrıştırıcı ve düzenleyici
+│   └── world.py            # Kayıt yedekleme / geri yükleme / silme
+├── templates/              # Jinja2 HTML şablonları (her sekme için bir tane)
+├── static/style.css        # Tüm ön yüz stilleri
+└── translations/
+    ├── en.json             # İngilizce arayüz metinleri
+    └── tr.json             # Türkçe arayüz metinleri
+```
+
+---
+
+## Sorun Giderme
+
+| Sorun | Çözüm |
+|---|---|
+| Panel açılıyor ama sunucu başlamıyor | `config.py`'daki `SERVER_DIR`'in `start-server.sh` dosyasının bulunduğu klasörü gösterdiğini kontrol edin. `ls "$HOME/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server"` ile doğrulayın. |
+| `servertest.ini` bulunamadı / Sandbox sekmesi boş | Yapılandırma dosyalarını oluşturmak için sunucuyu bir kez elle çalıştırın (`bash start-server.sh`), ardından paneli yeniden başlatın. |
+| Mod sekmesinde arama sonucu yok | İnternet bağlantınızı kontrol edin. Panel doğrudan Steam Workshop API'sini sorgular — Steam istemcisi gerekmez. |
+| Arkadaşlar ZeroTier üzerinden bağlanamıyor | Şunları kontrol edin: (1) her iki taraf ZeroTier Central'da yetkilendirilmiş, (2) UFW ZeroTier arayüzünde UDP 16261'e izin veriyor, (3) sunucu gerçekten çalışıyor (Terminal sekmesine bakın). |
+| `ModuleNotFoundError: No module named 'flask'` | Panel dizininden `pip3 install -r requirements.txt` komutunu çalıştırın. |
+| Terminal sekmesi sunucu başladıktan sonra çıktı göstermiyor | Panel PTY kullanıyor — `python3 app.py` komutunu sunucu kurulum dizinine sahip olan Linux kullanıcısı olarak çalıştırdığınızdan emin olun. |
+| 8621 portu başka makineden ulaşılamıyor | UFW aktifse `sudo ufw allow 8621/tcp` çalıştırın. ZeroTier'da ZeroTier bölümünde gösterildiği gibi `zt...` arayüzü için bir kural ekleyin. |
+
+---
+
+## Lisans
+
+MIT
