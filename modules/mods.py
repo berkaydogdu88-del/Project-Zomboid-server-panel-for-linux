@@ -6,29 +6,17 @@ import urllib.request
 import urllib.parse
 import concurrent.futures
 from collections import deque
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, g
 from config import INI_PATH, WORKSHOP_CONTENT_DIR
 from modules.sandbox import find_orphan_sandbox_groups, remove_sandbox_groups
 
 mods_bp = Blueprint("mods", __name__, url_prefix="/mods")
 
 
-# Etiket → Türkçe kategori eşleştirmesi
-CATEGORY_TAGS = {
-    "Weapons": "Silah",
-    "Vehicles": "Araç",
-    "Items": "Eşya",
-    "Clothing/Armor": "Kıyafet/Zırh",
-    "Building": "İnşa",
-    "Map": "Harita",
-    "Balance": "Denge",
-    "Models": "Modeller",
-    "Hardmode": "Zor Mod",
-    "Misc": "Diğer",
-    "Food": "Yiyecek",
-    "Animations": "Animasyon",
-    "Translation": "Çeviri",
-}
+CATEGORY_TAGS = [
+    "Weapons", "Vehicles", "Items", "Clothing/Armor", "Building",
+    "Map", "Balance", "Models", "Hardmode", "Misc", "Food", "Animations", "Translation",
+]
 
 
 def read_ini():
@@ -598,12 +586,12 @@ def api_search():
         "items": result["items"],
         "totalPages": result["totalPages"],
         "currentPage": page,
-        "categories": CATEGORY_TAGS,
     })
 
 
 @mods_bp.route("/api/categories")
 def api_categories():
-    return jsonify({"categories": CATEGORY_TAGS})
+    cats = {k: g.t.get("cat_" + k.replace("/", "_"), k) for k in CATEGORY_TAGS}
+    return jsonify({"categories": cats})
 
 
