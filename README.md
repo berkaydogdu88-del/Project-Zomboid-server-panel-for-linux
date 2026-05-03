@@ -28,6 +28,10 @@ A web-based control panel for managing a Project Zomboid Dedicated Server on Lin
 |:---:|:---:|
 | ![World Management](screenshots/world.png) | ![Server Terminal](screenshots/terminal.png) |
 
+| Maps | Cheats / Admin |
+|:---:|:---:|
+| ![Map Management](screenshots/maps.png) | ![Cheats & Admin](screenshots/cheats.png) |
+
 ## Prerequisites
 
 - Linux (Ubuntu/Debian recommended)
@@ -328,6 +332,10 @@ Linux üzerinde bir Project Zomboid Dedicated Server'ı yönetmek için web taba
 | Dünya | Terminal |
 |:---:|:---:|
 | ![Dünya Yönetimi](screenshots/world.png) | ![Sunucu Terminali](screenshots/terminal.png) |
+
+| Haritalar | Cheat'ler / Yönetici |
+|:---:|:---:|
+| ![Harita Yönetimi](screenshots/maps.png) | ![Cheat'ler ve Yönetici](screenshots/cheats.png) |
 
 ## Gereksinimler
 
