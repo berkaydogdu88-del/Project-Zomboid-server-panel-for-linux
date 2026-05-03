@@ -12,6 +12,8 @@ from modules.mods import mods_bp
 from modules.sandbox import sandbox_bp
 from modules.world import world_bp
 from modules.server import server_bp
+from modules.cheats import cheats_bp
+from modules.maps import maps_bp
 
 app = Flask(__name__)
 
@@ -26,6 +28,8 @@ app.register_blueprint(mods_bp)
 app.register_blueprint(sandbox_bp)
 app.register_blueprint(world_bp)
 app.register_blueprint(server_bp)
+app.register_blueprint(cheats_bp)
+app.register_blueprint(maps_bp)
 
 
 @app.before_request

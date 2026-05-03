@@ -15,6 +15,8 @@
     <a href="/sandbox/" class="{% if request.path.startswith('/sandbox') %}active{% endif %}">{{ t.nav_sandbox }}</a>
     <a href="/world/" class="{% if request.path.startswith('/world') %}active{% endif %}">{{ t.nav_world }}</a>
     <a href="/terminal" class="{% if request.path.startswith('/terminal') %}active{% endif %}">{{ t.nav_terminal }}</a>
+    <a href="/maps/" class="{% if request.path.startswith('/maps') %}active{% endif %}">{{ t.nav_maps }}</a>
+    <a href="/cheats/" class="{% if request.path.startswith('/cheats') %}active{% endif %}">{{ t.nav_cheats }}</a>
   </nav>
   <div class="lang-switcher">
     <a href="/set-language/en"{% if lang == 'en' %} class="active"{% endif %}>EN</a>

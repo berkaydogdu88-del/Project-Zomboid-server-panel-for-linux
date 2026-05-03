@@ -48,6 +48,16 @@
   <div id="paginationControls" style="margin-top:14px"></div>
 </div>
 
+<div class="sec-label">{{ t.mods_health_label }}</div>
+<div class="card">
+  <div class="row" style="align-items:center; gap:10px; flex-wrap:wrap">
+    <button class="btn btn-ghost btn-sm" id="healthBtn" onclick="loadHealth()">{{ t.mods_health_scan_btn }}</button>
+    <div id="healthSummary" style="font-family:var(--mono); font-size:11px; color:var(--muted)">{{ t.mods_health_idle }}</div>
+  </div>
+  <div id="healthFilters" class="health-filters" style="display:none"></div>
+  <div id="healthList" class="health-list"></div>
+</div>
+
 <div class="sec-label">{{ t.mods_installed_label }}</div>
 <div class="card">
   <div class="row" style="margin-bottom:12px; gap:8px; align-items:center">
@@ -88,11 +98,84 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.health-filters { margin-top: 10px; display:flex; gap:6px; flex-wrap:wrap; }
+.health-filter {
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface2);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+.health-filter.active { color: var(--accent); border-color: rgba(174,255,0,0.45); background: rgba(174,255,0,0.08); }
+.health-list { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.health-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.015);
+}
+.health-section-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding: 9px 11px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.health-section-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.health-section-body { display:flex; flex-direction:column; gap:0; }
+.health-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--border);
+}
+.health-item:last-child { border-bottom: 0; }
+.health-item.error { background: rgba(255, 66, 66, 0.05); }
+.health-item.warn { background: rgba(255, 183, 77, 0.04); }
+.health-item.info { background: rgba(111, 168, 255, 0.04); }
+.health-title { font-size: 12px; font-weight: 700; color: var(--text); line-height:1.3; }
+.health-detail { margin-top: 3px; font-family: var(--mono); font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.health-item details { margin-top:5px; }
+.health-item summary { cursor:pointer; font-family:var(--mono); font-size:10px; color:var(--muted); }
+.health-ok {
+  padding: 10px 12px;
+  border: 1px solid rgba(58,245,160,0.25);
+  background: rgba(58,245,160,0.06);
+  border-radius: 8px;
+  color: var(--accent2);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.health-show-more {
+  align-self:flex-start;
+  margin: 8px 11px 10px;
+}
+</style>
 <script>
 let mods = [];
 let pendingWid = null;
 let dragSrcIdx = null;
 let orderChanged = false;
+let healthRows = [];
+let healthFilter = 'action';
+let healthExpanded = {};
+let linkedWorkshopId = null;
+let linkedTimer = null;
+const LINKED_HIGHLIGHT_MS = 6000;
 
 async function load() {
   const r = await fetch('/mods/api/list');
@@ -100,6 +183,7 @@ async function load() {
   mods = d.mods || [];
   orderChanged = false;
   render();
+  loadHealth();
 }
 
 function render() {
@@ -132,16 +216,26 @@ function render() {
       ? `draggable="true" ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})" ondrop="dragDrop(event,${i})" ondragend="dragEnd()"`
       : '';
     const handle = draggable ? `<div class="drag-handle" title="${T.mods_drag_title}">&#8942;</div>` : '';
+    const groupSize = Number(m.groupSize || 1);
+    const isActiveBadge = linkedWorkshopId === m.workshopId;
+    const multiBadge = groupSize > 1
+      ? `<span class="badge warn clickable${isActiveBadge ? ' active' : ''}" draggable="false" title="${escapeAttr(T.mods_multi_id_hint)}" onclick="toggleLinkHighlight(event, '${escapeAttr(m.workshopId)}')">${fmt(T.mods_multi_id_badge, {n: groupSize})}</span>`
+      : '';
+    let rowClass = 'mod-item';
+    if (linkedWorkshopId) {
+      rowClass += (m.workshopId === linkedWorkshopId) ? ' linked' : ' dimmed';
+    }
     return `
-      <div class="mod-item" ${dragAttrs}>
+      <div class="${rowClass}" ${dragAttrs}>
         ${handle}
         <div class="mod-info">
           <div class="mod-name">${escapeHtml(m.modId)}</div>
           <div class="mod-meta">workshop: ${m.workshopId}</div>
         </div>
+        ${multiBadge}
         <span class="badge">${T.mods_active_badge}</span>
         <a class="btn btn-ghost btn-sm" href="https://steamcommunity.com/sharedfiles/filedetails/?id=${m.workshopId}" target="_blank">Steam</a>
-        <button class="btn btn-red btn-sm" onclick="removeMod('${escapeAttr(m.workshopId)}')">${T.mods_remove_btn}</button>
+        <button class="btn btn-red btn-sm" onclick="removeMod('${escapeAttr(m.workshopId)}', '${escapeAttr(m.modId)}')">${T.mods_remove_btn}</button>
       </div>
     `;
   }).join('');
@@ -176,6 +270,22 @@ function dragEnd() {
   document.querySelectorAll('.mod-item').forEach(el => el.classList.remove('dragging', 'drag-over'));
 }
 
+function toggleLinkHighlight(e, wid) {
+  e.stopPropagation();
+  if (linkedTimer) { clearTimeout(linkedTimer); linkedTimer = null; }
+  if (linkedWorkshopId === wid) {
+    linkedWorkshopId = null;
+  } else {
+    linkedWorkshopId = wid;
+    linkedTimer = setTimeout(() => {
+      linkedWorkshopId = null;
+      linkedTimer = null;
+      render();
+    }, LINKED_HIGHLIGHT_MS);
+  }
+  render();
+}
+
 async function saveOrder() {
   const r = await fetch('/mods/api/reorder', {
     method: 'POST',
@@ -187,6 +297,7 @@ async function saveOrder() {
     toast(T.mods_order_saved, 'ok');
     orderChanged = false;
     document.getElementById('reorderBar').style.display = 'none';
+    loadHealth();
   } else {
     toast(T.mods_order_error + (d.error || '?'), 'err');
   }
@@ -271,26 +382,252 @@ function confirmManualModId() {
   addMod(modId);
 }
 
-async function removeMod(workshopId) {
-  const mod = mods.find(m => m.workshopId === workshopId);
-  const label = mod ? mod.modId : workshopId;
-  if (!confirm(fmt(T.mods_remove_confirm, {name: label}))) return;
+async function removeMod(workshopId, modId) {
+  const label = modId || workshopId;
+  const groupSize = mods.filter(m => m.workshopId === workshopId).length;
+  const confirmText = groupSize > 1
+    ? fmt(T.mods_remove_submod_confirm, {mod: label, workshop: workshopId, n: groupSize - 1})
+    : fmt(T.mods_remove_confirm, {name: label});
+  if (!confirm(confirmText)) return;
   const r = await fetch('/mods/api/remove', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({workshopId})
+    body: JSON.stringify({workshopId, modId})
   });
   const d = await r.json();
   if (d.success) {
-    let msg = T.mods_removed;
+    let msg = d.removedWorkshopItem
+      ? T.mods_removed
+      : fmt(T.mods_submod_removed, {n: d.remainingModIdsForWorkshop});
     if (d.cleanedGroups && d.cleanedGroups.length) {
       msg += T.mods_sandbox_cleaned + d.cleanedGroups.join(', ');
+    }
+    if (d.cleanupError) {
+      msg += ' ' + (T.mods_sandbox_cleanup_skipped || 'Sandbox cleanup skipped.');
     }
     toast(msg, 'ok');
     load();
   } else {
     toast(T.mods_order_error + d.error, 'err');
   }
+}
+
+async function loadHealth() {
+  const btn = document.getElementById('healthBtn');
+  const summary = document.getElementById('healthSummary');
+  const list = document.getElementById('healthList');
+  if (!btn || !summary || !list) return;
+  btn.disabled = true;
+  summary.textContent = T.mods_health_scanning;
+  list.innerHTML = '';
+  try {
+    const r = await fetch('/mods/api/health');
+    const d = await r.json();
+    if (!d.success) {
+      summary.textContent = T.mods_health_failed;
+      return;
+    }
+    const s = d.summary || {};
+    summary.textContent = fmt(T.mods_health_summary, {
+      issues: s.issues || 0,
+      notes: s.notes || 0,
+      deps: s.missingDependencies || 0,
+      files: s.missingFiles || 0,
+      ids: s.badModIds || 0,
+      mods: s.enabledMods || 0,
+    });
+    renderHealthIssues(d.issues || [], d.notes || []);
+  } catch(e) {
+    summary.textContent = T.mods_health_failed;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderHealthIssues(issues, notes) {
+  healthRows = [
+    ...issues.map(issue => ({...issue, section: 'issue', level: issue.severity === 'error' ? 'error' : 'warn'})),
+    ...notes.map(note => ({...note, section: 'note', level: note.severity === 'warn' ? 'warn' : 'info'})),
+  ];
+  const counts = healthCounts();
+  if (healthFilter === 'error' && !counts.error) healthFilter = counts.action ? 'action' : 'all';
+  if (healthFilter === 'warn' && !counts.warn) healthFilter = counts.action ? 'action' : 'all';
+  if (healthFilter === 'info' && !counts.info) healthFilter = counts.action ? 'action' : 'all';
+  healthExpanded = {};
+  renderHealthFilters();
+  renderHealthList();
+}
+
+function healthCounts() {
+  return {
+    action: healthRows.filter(r => r.section !== 'note').length,
+    error: healthRows.filter(r => r.level === 'error').length,
+    warn: healthRows.filter(r => r.level === 'warn').length,
+    info: healthRows.filter(r => r.level === 'info').length,
+    all: healthRows.length,
+  };
+}
+
+function renderHealthFilters() {
+  const filters = document.getElementById('healthFilters');
+  if (!filters) return;
+  if (!healthRows.length) {
+    filters.style.display = 'none';
+    filters.innerHTML = '';
+    return;
+  }
+  const counts = healthCounts();
+  const defs = [
+    ['action', T.mods_health_filter_action || 'Needs action', counts.action],
+    ['error', T.mods_health_filter_error || 'Errors', counts.error],
+    ['warn', T.mods_health_filter_warn || 'Warnings', counts.warn],
+    ['info', T.mods_health_filter_info || 'Notes', counts.info],
+    ['all', T.mods_health_filter_all || 'All', counts.all],
+  ];
+  filters.innerHTML = defs
+    .filter(([, , count]) => count > 0)
+    .map(([key, label, count]) => `<button type="button" class="health-filter ${healthFilter === key ? 'active' : ''}" data-health-filter="${escapeAttr(key)}">${escapeHtml(label)} ${count}</button>`)
+    .join('');
+  filters.style.display = 'flex';
+}
+
+document.getElementById('healthFilters').addEventListener('click', e => {
+  const btn = e.target.closest('[data-health-filter]');
+  if (!btn) return;
+  setHealthFilter(btn.dataset.healthFilter);
+});
+
+function setHealthFilter(filter) {
+  healthFilter = filter;
+  renderHealthFilters();
+  renderHealthList();
+}
+
+function rowsForHealthFilter() {
+  if (healthFilter === 'all') return healthRows;
+  if (healthFilter === 'action') return healthRows.filter(r => r.section !== 'note');
+  return healthRows.filter(r => r.level === healthFilter);
+}
+
+function groupHealthRows(rows) {
+  const labels = {
+    missing_dependency: T.mods_health_group_deps || 'Missing dependencies',
+    mod_id_not_found: T.mods_health_group_ids || 'Bad Mod IDs',
+    mod_id_alias_not_accepted: T.mods_health_group_ids || 'Bad Mod IDs',
+    missing_files: T.mods_health_group_files || 'Missing local files',
+    duplicate_workshop: T.mods_health_group_duplicates || 'Duplicates',
+    load_order: T.mods_health_group_order || 'Load order',
+    note: T.mods_health_group_notes || 'Notes',
+    other: T.mods_health_group_other || 'Other findings',
+  };
+  const order = ['missing_dependency', 'mod_id_not_found', 'mod_id_alias_not_accepted', 'missing_files', 'duplicate_workshop', 'load_order', 'note', 'other'];
+  const groups = {};
+  rows.forEach(row => {
+    const key = row.section === 'note' ? 'note' : (labels[row.type] ? row.type : 'other');
+    if (!groups[key]) groups[key] = {key, label: labels[key], rows: []};
+    groups[key].rows.push(row);
+  });
+  return order.filter(k => groups[k]).map(k => groups[k]);
+}
+
+function renderHealthList() {
+  const list = document.getElementById('healthList');
+  const rows = rowsForHealthFilter();
+  if (!healthRows.length) {
+    list.innerHTML = `<div class="health-ok">${T.mods_health_ok}</div>`;
+    return;
+  }
+  if (!rows.length) {
+    list.innerHTML = `<div class="health-ok">${T.mods_health_empty_filter || 'Nothing in this filter.'}</div>`;
+    return;
+  }
+
+  list.innerHTML = groupHealthRows(rows).map(group => renderHealthGroup(group)).join('');
+}
+
+function renderHealthGroup(group) {
+  const limit = healthExpanded[group.key] ? group.rows.length : 5;
+  const shown = group.rows.slice(0, limit);
+  const more = group.rows.length - shown.length;
+  return `<div class="health-section">
+    <div class="health-section-head">
+      <div class="health-section-title">${escapeHtml(group.label)}</div>
+      <span class="badge gray">${group.rows.length}</span>
+    </div>
+    <div class="health-section-body">
+      ${shown.map(renderHealthRow).join('')}
+      ${more > 0 ? `<button class="btn btn-ghost btn-sm health-show-more" onclick="showAllHealthGroup('${escapeAttr(group.key)}')">${fmt(T.mods_health_show_more || 'Show {n} more', {n: more})}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function showAllHealthGroup(key) {
+  healthExpanded[key] = true;
+  renderHealthList();
+}
+
+function renderHealthRow(issue) {
+  const sev = issue.level || (issue.section === 'note' ? 'info' : (issue.severity === 'error' ? 'error' : 'warn'));
+  const addBtn = issue.type === 'missing_dependency' && issue.providerWorkshopId
+    ? `<button class="btn btn-primary btn-sm" onclick="addDependency('${escapeAttr(issue.providerWorkshopId)}', '${escapeAttr(issue.providerModId || issue.dependency)}')">${T.mods_health_add_dep}</button>`
+    : '';
+  const removeBtn = issue.type === 'missing_dependency'
+    ? `<button class="btn btn-red btn-sm" onclick="removeMod('${escapeAttr(issue.workshopId)}', '${escapeAttr(issue.modId)}')">${T.mods_remove_btn}</button>`
+    : '';
+  const repairBtn = issue.type === 'mod_id_alias_not_accepted' && issue.canonicalModId
+    ? `<button class="btn btn-primary btn-sm" onclick="repairModId('${escapeAttr(issue.workshopId)}', '${escapeAttr(issue.modId)}', '${escapeAttr(issue.canonicalModId)}')">${T.mods_health_fix_id || 'Fix ID'}</button>`
+    : '';
+  const details = (issue.type === 'mod_id_not_found' || issue.type === 'mod_id_alias_not_accepted') && issue.availableModIds && issue.availableModIds.length
+    ? `<div class="health-detail">${T.mods_health_available_ids}: ${escapeHtml(issue.availableModIds.join(', '))}</div>`
+    : '';
+  const evidence = issue.evidence
+    ? `<div class="health-detail">${T.mods_health_evidence}: ${escapeHtml(issue.evidence)}</div>`
+    : '';
+  const confidence = issue.confidence
+    ? `<span class="badge gray">${escapeHtml(T['mods_health_conf_' + issue.confidence] || issue.confidence)}</span>`
+    : '';
+  const meta = [
+    issue.modId ? escapeHtml(issue.modId) : '',
+    issue.workshopId ? 'workshop ' + escapeHtml(issue.workshopId) : ''
+  ].filter(Boolean).join(' · ');
+  return `
+    <div class="health-item ${sev}">
+      <div style="min-width:0; flex:1">
+        <div class="health-title">${escapeHtml(issue.message)} ${confidence}</div>
+        ${meta ? `<div class="health-detail">${meta}</div>` : ''}
+        ${details}
+        ${evidence ? `<details><summary>${T.mods_health_details || 'Details'}</summary>${evidence}</details>` : ''}
+      </div>
+      <div class="row" style="gap:6px; flex-shrink:0">${addBtn}${repairBtn}${removeBtn}</div>
+    </div>
+  `;
+}
+
+async function repairModId(workshopId, modId, canonicalModId) {
+  try {
+    const r = await fetch('/mods/api/repair-id', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({workshopId, modId, canonicalModId}),
+    });
+    const d = await r.json();
+    if (d.success) {
+      toast(d.message || (T.mods_health_fixed_id || 'Mod ID fixed.'), 'ok');
+      await load();
+      await loadHealth();
+    } else {
+      toast(d.message || T.mods_order_error, 'err');
+    }
+  } catch(e) {
+    toast(T.mods_connection_error, 'err');
+  }
+}
+
+async function addDependency(workshopId, modId) {
+  const oldValue = document.getElementById('wid').value;
+  document.getElementById('wid').value = workshopId;
+  await addMod(modId);
+  document.getElementById('wid').value = oldValue;
 }
 
 let currentPage = 1;

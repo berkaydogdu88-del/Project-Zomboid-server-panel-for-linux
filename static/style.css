@@ -210,6 +210,20 @@ select { cursor: pointer; appearance: none; background-image: url("data:image/sv
 }
 .badge.gray { background: var(--surface3); color: var(--muted); border-color: var(--border); }
 .badge.warn { background: rgba(245,200,58,0.08); color: var(--warn); border-color: rgba(245,200,58,0.2); }
+.badge.clickable { cursor: pointer; user-select: none; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+.badge.warn.clickable:hover { background: rgba(245,200,58,0.18); border-color: rgba(245,200,58,0.4); }
+.badge.warn.active {
+  background: rgba(58,245,160,0.18);
+  color: var(--accent2);
+  border-color: rgba(58,245,160,0.45);
+}
+
+.mod-item.linked {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 1px var(--accent2) inset, 0 0 22px -10px var(--accent2);
+}
+.mod-item.dimmed { opacity: 0.32; }
+.mod-item.linked, .mod-item.dimmed { transition: opacity 0.18s, border-color 0.18s, box-shadow 0.18s; }
 
 .empty { text-align: center; padding: 36px; color: var(--muted); font-family: var(--mono); font-size: 13px; }
 .empty .icon { font-size: 36px; margin-bottom: 8px; }

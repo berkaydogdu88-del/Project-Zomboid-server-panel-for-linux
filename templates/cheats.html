@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}{{ t.cheats_title }} - PZ Panel{% endblock %}
+{% block content %}
+<div class="page-title">{{ t.cheats_title }}</div>
+<div class="page-subtitle">{{ t.cheats_subtitle }}</div>
+
+<!-- Sticky give bar -->
+<div class="give-bar">
+  <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap">
+    <select id="playerSelect" style="flex:1;min-width:180px">
+      <option value="__all__">{{ t.cheats_all_players }}</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" id="refreshBtn" onclick="refreshPlayers()">{{ t.cheats_refresh_players }}</button>
+    <span id="playerStatus" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+    <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+      <span style="font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">{{ t.cheats_qty }}</span>
+      <input type="number" id="qtyInput" value="1" min="1" max="999" style="width:74px;padding:8px 10px;text-align:center"/>
+    </div>
+  </div>
+</div>
+
+<!-- Powers -->
+<div class="sec-label">{{ t.cheats_powers_label }}</div>
+<div class="card" style="margin-bottom:20px">
+
+  <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px">{{ t.cheats_powers_player }}</div>
+  <div class="power-grid" style="margin-bottom:18px">
+    <div class="power-row">
+      <span class="power-label">{{ t.cheats_godmode }}</span>
+      <div class="row" style="gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="power('godmode', true)">{{ t.cheats_enable }}</button>
+        <button class="btn btn-ghost btn-sm btn-stop" onclick="power('godmode', false)">{{ t.cheats_disable }}</button>
+      </div>
+    </div>
+    <div class="power-row">
+      <span class="power-label">{{ t.cheats_maxskills }}</span>
+      <button class="btn btn-primary btn-sm" onclick="power('maxskills', true)">{{ t.cheats_maxskills }}</button>
+    </div>
+    <div class="power-row">
+      <span class="power-label">{{ t.cheats_access }}</span>
+      <div class="row" style="gap:6px;align-items:center">
+        <select id="roleSelect" style="min-width:130px;padding:6px 10px;font-size:12px">
+          <option value="admin">Admin</option>
+          <option value="moderator">Moderator</option>
+          <option value="overseer">Overseer</option>
+          <option value="gm">GM</option>
+          <option value="observer">Observer</option>
+          <option value="none">{{ t.cheats_role_none }}</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="assignRole()">{{ t.cheats_role_assign }}</button>
+      </div>
+    </div>
+    <div class="power-row">
+      <span class="power-label">{{ t.cheats_teleport }}</span>
+      <div class="row" style="gap:6px;align-items:center">
+        <select id="tpDestSelect" style="min-width:120px;padding:6px 10px;font-size:12px">
+          <option value="">— {{ t.cheats_tp_select }} —</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="powerTeleport()">{{ t.cheats_tp_btn }}</button>
+      </div>
+    </div>
+    <div class="power-row">
+      <span class="power-label">{{ t.cheats_kick }}</span>
+      <button class="btn btn-red btn-sm" onclick="power('kick', true)">{{ t.cheats_kick }}</button>
+    </div>
+  </div>
+
+  <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px">{{ t.cheats_powers_server }}</div>
+  <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:18px">
+    <button class="btn btn-ghost btn-sm" onclick="serverEvent('chopper')">🚁 {{ t.cheats_ev_chopper }}</button>
+    <button class="btn btn-ghost btn-sm" onclick="serverEvent('gunshot')">💥 {{ t.cheats_ev_gunshot }}</button>
+    <button class="btn btn-ghost btn-sm" onclick="serverEvent('startrain')">🌧 {{ t.cheats_ev_rain_on }}</button>
+    <button class="btn btn-ghost btn-sm" onclick="serverEvent('stoprain')">☀️ {{ t.cheats_ev_rain_off }}</button>
+    <button class="btn btn-ghost btn-sm" onclick="serverEvent('thunderstorm')">⛈ {{ t.cheats_ev_thunder }}</button>
+  </div>
+
+  <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px">{{ t.cheats_powers_broadcast }}</div>
+  <div class="row" style="gap:8px">
+    <input type="text" id="broadcastMsg" placeholder="{{ t.cheats_broadcast_ph }}" style="flex:1" onkeydown="if(event.key==='Enter')sendBroadcast()"/>
+    <button class="btn btn-ghost" onclick="sendBroadcast()">{{ t.cheats_broadcast_btn }}</button>
+  </div>
+
+  <div class="hint" style="margin-top:14px">{{ t.cheats_ingame_note }}</div>
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom:16px">
+  <div class="row" style="flex-wrap:wrap;gap:10px">
+    <input type="text" id="searchBox" placeholder="{{ t.cheats_search }}"
+           style="flex:2;min-width:200px" oninput="filterItems()"/>
+    <select id="catFilter" style="flex:1;min-width:150px" onchange="filterItems()">
+      <option value="">{{ t.cheats_all_categories }}</option>
+    </select>
+    <select id="srcFilter" style="flex:1;min-width:150px" onchange="filterItems()">
+      <option value="">{{ t.cheats_all_sources }}</option>
+    </select>
+  </div>
+  <div id="itemCount" style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted)">
+    {{ t.cheats_loading }}
+  </div>
+</div>
+
+<!-- Item list -->
+<div class="card">
+  <div class="list" id="itemList">
+    <div class="empty"><div class="icon">⚔️</div>{{ t.cheats_loading }}</div>
+  </div>
+  <div id="loadMoreWrap" style="display:none;margin-top:14px;text-align:center">
+    <button class="btn btn-ghost" onclick="renderMore()">{{ t.cheats_load_more }}</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.give-bar {
+  position: sticky;
+  top: 61px;
+  z-index: 90;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+}
+.power-grid { display: flex; flex-direction: column; gap: 10px; }
+.power-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.power-label { font-size: 13px; font-weight: 600; }
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  animation: fadeIn 0.12s ease;
+}
+.item-row:hover { border-color: var(--border2); }
+.item-name { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-id { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+<script>
+let allItems = [];
+let filtered = [];
+let shown = 0;
+const PAGE = 100;
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+async function loadItems() {
+  try {
+    const r = await fetch('/cheats/api/items');
+    allItems = await r.json();
+
+    const cats = [...new Set(allItems.map(i => i.category).filter(Boolean))].sort();
+    const catSel = document.getElementById('catFilter');
+    catSel.innerHTML = `<option value="">${T.cheats_all_categories}</option>`;
+    cats.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      catSel.appendChild(o);
+    });
+
+    const srcs = [...new Set(allItems.map(i => i.source))].sort();
+    const srcSel = document.getElementById('srcFilter');
+    srcSel.innerHTML = `<option value="">${T.cheats_all_sources}</option>`;
+    srcs.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      srcSel.appendChild(o);
+    });
+
+    filterItems();
+  } catch(e) {
+    document.getElementById('itemList').innerHTML =
+      `<div class="empty"><div class="icon">⚠️</div>${T.cheats_load_error}</div>`;
+  }
+}
+
+function filterItems() {
+  const q = document.getElementById('searchBox').value.toLowerCase().trim();
+  const cat = document.getElementById('catFilter').value;
+  const src = document.getElementById('srcFilter').value;
+
+  filtered = allItems.filter(it => {
+    if (q) {
+      const hay = `${it.display} ${it.item} ${it.module}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (cat && it.category !== cat) return false;
+    if (src && it.source !== src) return false;
+    return true;
+  });
+
+  shown = 0;
+  document.getElementById('itemList').innerHTML = '';
+  document.getElementById('itemCount').textContent =
+    fmt(T.cheats_items_found, { n: filtered.length });
+  renderMore();
+}
+
+function renderMore() {
+  const list = document.getElementById('itemList');
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty"><div class="icon">🔍</div>${T.cheats_no_results}</div>`;
+    document.getElementById('loadMoreWrap').style.display = 'none';
+    return;
+  }
+
+  const end = Math.min(shown + PAGE, filtered.length);
+  const frag = document.createDocumentFragment();
+
+  for (let i = shown; i < end; i++) {
+    const it = filtered[i];
+    const isVanilla = it.source === 'Vanilla';
+    const div = document.createElement('div');
+    div.className = 'item-row';
+    div.innerHTML = `
+      <div style="flex:1;min-width:0">
+        <div class="item-name">${esc(it.display)}</div>
+        <div class="item-id">${esc(it.module)}.${esc(it.item)}</div>
+      </div>
+      <span class="badge gray" style="flex-shrink:0">${esc(it.category || it.type || '—')}</span>
+      <span class="badge ${isVanilla ? 'gray' : ''}" style="flex-shrink:0;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.source)}">${esc(it.source)}</span>
+      <button class="btn btn-primary btn-sm give-btn"
+              data-module="${esc(it.module)}"
+              data-item="${esc(it.item)}"
+              data-kind="${esc(it.kind||'item')}"
+              style="flex-shrink:0">${it.kind === 'vehicle' ? T.cheats_spawn : T.cheats_give}</button>
+    `;
+    frag.appendChild(div);
+  }
+
+  list.appendChild(frag);
+  shown = end;
+  document.getElementById('loadMoreWrap').style.display = shown < filtered.length ? 'block' : 'none';
+}
+
+// Event delegation — one listener handles all give buttons
+document.getElementById('itemList').addEventListener('click', async function(e) {
+  const btn = e.target.closest('.give-btn');
+  if (!btn || btn.disabled) return;
+
+  const module = btn.dataset.module;
+  const item = btn.dataset.item;
+  const target = document.getElementById('playerSelect').value;
+  const count = Math.max(1, parseInt(document.getElementById('qtyInput').value) || 1);
+
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '...';
+
+  try {
+    const r = await fetch('/cheats/api/give', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module, item, count, target, kind: btn.dataset.kind || 'item' })
+    });
+    const d = await r.json();
+    toast(d.message, d.success ? 'ok' : 'err');
+  } catch(err) {
+    toast(T.cheats_given_err, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+});
+
+async function refreshPlayers() {
+  const btn = document.getElementById('refreshBtn');
+  const status = document.getElementById('playerStatus');
+  btn.disabled = true;
+  status.textContent = '...';
+
+  try {
+    const r = await fetch('/cheats/api/players');
+    const players = await r.json();
+    const sel = document.getElementById('playerSelect');
+    sel.innerHTML = `<option value="__all__">${T.cheats_all_players}</option>`;
+    players.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p; o.textContent = p;
+      sel.appendChild(o);
+    });
+
+    // Also populate teleport destination
+    const tpSel = document.getElementById('tpDestSelect');
+    tpSel.innerHTML = `<option value="">— ${T.cheats_tp_select} —</option>`;
+    players.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p; o.textContent = p;
+      tpSel.appendChild(o);
+    });
+    status.textContent = players.length
+      ? `(${players.length} online)`
+      : '(no players)';
+  } catch(err) {
+    status.textContent = '(error)';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function power(action, value, extra) {
+  const target = document.getElementById('playerSelect').value;
+  try {
+    const r = await fetch('/cheats/api/power', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, target, value, extra: extra || '' })
+    });
+    const d = await r.json();
+    toast(d.message, d.success ? 'ok' : 'err');
+  } catch(err) {
+    toast(T.cheats_power_err, 'err');
+  }
+}
+
+async function serverEvent(action) {
+  try {
+    const r = await fetch('/cheats/api/power', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    const d = await r.json();
+    toast(d.message, d.success ? 'ok' : 'err');
+  } catch(err) {
+    toast(T.cheats_power_err, 'err');
+  }
+}
+
+async function sendBroadcast() {
+  const msg = document.getElementById('broadcastMsg').value.trim();
+  if (!msg) return;
+  try {
+    const r = await fetch('/cheats/api/power', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'servermsg', extra: msg })
+    });
+    const d = await r.json();
+    toast(d.message, d.success ? 'ok' : 'err');
+    if (d.success) document.getElementById('broadcastMsg').value = '';
+  } catch(err) {
+    toast(T.cheats_power_err, 'err');
+  }
+}
+
+async function assignRole() {
+  const role = document.getElementById('roleSelect').value;
+  await power('setrole', true, role);
+}
+
+async function powerTeleport() {
+  const dest = document.getElementById('tpDestSelect').value;
+  if (!dest) { toast('Select a destination player', 'warn'); return; }
+  await power('tp_to_me', true, dest);
+}
+
+loadItems();
+refreshPlayers();
+</script>
+{% endblock %}

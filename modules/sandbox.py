@@ -314,26 +314,25 @@ def _find_orphan_groups_in(groups_dict, installed_mod_ids):
 
 def find_orphan_sandbox_groups(mod_ids):
     """
-    Return non-vanilla sandbox groups whose name matches any of mod_ids.
-    Used after mod removal to identify leftover settings blocks.
-    Matching is case-insensitive substring (group ⊆ modId or modId ⊆ group).
+    Return non-vanilla sandbox groups whose name exactly matches one of
+    mod_ids (case-insensitive, ignoring non-alphanumerics). Used at mod
+    removal time, so matching is strict: false negatives leave inert
+    leftover settings, but false positives would delete unrelated mods'
+    settings. Substring matching is intentionally avoided — short mod IDs
+    like "LS" or "BCGTools" would otherwise nuke any group containing
+    those letters as a substring.
     """
     if not mod_ids or not os.path.exists(SANDBOX_PATH):
         return []
     groups = parse_sandbox_lua()
     if not groups:
         return []
-    mod_ids_lower = [m.lower() for m in mod_ids]
-    orphans = []
-    for group_name in groups:
-        if group_name in VANILLA_GROUPS:
-            continue
-        g = group_name.lower()
-        for m in mod_ids_lower:
-            if g == m or g in m or m in g:
-                orphans.append(group_name)
-                break
-    return orphans
+    norm = lambda s: re.sub(r'[^a-z0-9]', '', s.lower())
+    mod_norms = {norm(m) for m in mod_ids if m}
+    return [
+        group_name for group_name in groups
+        if group_name not in VANILLA_GROUPS and norm(group_name) in mod_norms
+    ]
 
 
 def remove_sandbox_groups(group_names):
@@ -419,12 +418,15 @@ def api_get():
                 "error": "SandboxVars.lua not found. Start the server at least once."
             })
 
-        # Auto-clean orphaned mod groups (mods that are no longer installed)
-        installed_ids = _read_installed_mod_ids()
-        orphans = _find_orphan_groups_in(groups_dict, installed_ids)
-        if orphans:
-            remove_sandbox_groups(orphans)
-            groups_dict = parse_sandbox_lua() or {}
+        # Page-load auto-cleanup intentionally removed. The previous
+        # implementation used a substring-match heuristic to guess which
+        # groups belonged to uninstalled mods, and silently deleted any
+        # group that didn't substring-match an installed mod ID. That
+        # destroyed legit groups like LSHygiene / LSAmbt (their owning
+        # mod ID 'Lifestyle' shares no substring with the group names).
+        # Removal-time cleanup in find_orphan_sandbox_groups still runs
+        # and uses strict matching, so genuinely orphan groups are still
+        # cleaned when the user explicitly removes a mod.
 
         # Split General: vanilla keys stay; mod flat-keys (prefix_rest) get synthetic tabs
         survival_vanilla_keys = _get_survival_vanilla_keys()

@@ -1,0 +1,1296 @@
+{% extends "base.html" %}
+{% block title %}{{ t.maps_title }} - PZ Panel{% endblock %}
+{% block content %}
+<div class="page-title">{{ t.maps_title }}</div>
+<div class="page-subtitle">{{ t.maps_subtitle }}</div>
+
+<!-- Top row: sidebar + canvas map -->
+<div class="maps-layout">
+
+  <!-- Sidebar -->
+  <div class="maps-sidebar">
+
+    <div id="pendingBanner" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.35);border-radius:8px;font-family:var(--mono);font-size:11px;color:#4ade80">
+      <div id="pendingBannerText"></div>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px;font-family:var(--mono)" onclick="activatePending()">&#x26A1; Activate &amp; Restart</button>
+    </div>
+
+    <div id="overlapBanner" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);border-radius:8px;font-family:var(--mono);font-size:11px;color:#ef4444">
+      {{ t.maps_overlap_warning }}
+    </div>
+
+    <div class="sec-label">{{ t.maps_health_label }}</div>
+    <div class="card map-health-card">
+      <div class="map-health-head">
+        <button type="button" class="map-health-toggle" id="mapHealthToggle" onclick="toggleMapHealth()">
+          <span id="mapHealthStatus">{{ t.maps_health_loading }}</span>
+          <span id="mapHealthChevron">&#x25BE;</span>
+        </button>
+        <button type="button" class="map-mini-btn" onclick="loadMapHealth()" title="{{ t.maps_health_refresh }}">&#x21BB;</button>
+      </div>
+      <div id="mapHealthList" class="map-health-list collapsed">
+        <div class="map-empty">{{ t.maps_health_loading }}</div>
+      </div>
+    </div>
+
+    <div class="sec-label">{{ t.maps_active_label }}</div>
+    <div class="card" style="margin-bottom:16px">
+      <div id="activeMaps"><div class="map-empty">{{ t.maps_loading }}</div></div>
+      <div class="hint" id="restartHint" style="display:none;margin-top:10px">{{ t.maps_restart_hint }}</div>
+    </div>
+
+    <div class="sec-label">{{ t.maps_available_label }}</div>
+    <div class="card">
+      <div id="availableMaps"><div class="map-empty">{{ t.maps_loading }}</div></div>
+    </div>
+
+  </div>
+
+  <!-- Canvas map -->
+  <div class="maps-main">
+    <div class="card" style="padding:0;overflow:hidden;position:relative;user-select:none">
+      <canvas id="mapCanvas" style="display:block;width:100%;height:580px;cursor:grab"></canvas>
+
+      <!-- Coord label -->
+      <div id="coordLabel" style="
+        position:absolute;bottom:8px;left:8px;z-index:10;
+        background:rgba(0,0,0,0.72);color:#ccc;
+        font-family:var(--mono);font-size:11px;
+        padding:4px 8px;border-radius:4px;pointer-events:none;
+        display:none
+      "></div>
+
+      <!-- Zoom controls -->
+      <div style="position:absolute;top:10px;left:10px;z-index:10;display:flex;flex-direction:column;gap:4px">
+        <button class="map-btn" onclick="zoomBy(1.3)" title="Zoom in">+</button>
+        <button class="map-btn" onclick="zoomBy(1/1.3)" title="Zoom out">&#x2212;</button>
+        <button class="map-btn" onclick="fitAll()" title="Fit view" style="font-size:13px">&#x25A3;</button>
+      </div>
+
+      <!-- Player teleport panel -->
+      <div class="map-player-panel">
+        <div class="map-player-head">
+          <span>{{ t.maps_players_label }}</span>
+          <button type="button" class="map-mini-btn" onclick="loadPlayers()" title="{{ t.maps_players_refresh }}">&#x21BB;</button>
+        </div>
+        <div id="mapPlayers" class="map-player-list">
+          <div class="map-player-empty">{{ t.maps_players_loading }}</div>
+        </div>
+        <div class="map-target-row">
+          <span id="mapTargetText">{{ t.maps_target_none }}</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm map-teleport-btn" id="mapTeleportBtn" onclick="teleportSelected()" disabled>
+          {{ t.maps_teleport_btn }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div style="margin-top:6px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">{{ t.maps_coord_hint }}</span>
+      <div style="display:flex;align-items:center;gap:10px;margin-left:auto">
+        <span style="display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;color:var(--muted)">
+          <span style="display:inline-block;width:12px;height:12px;background:#4ade80;border-radius:2px;opacity:0.8"></span> {{ t.maps_legend_active }}
+        </span>
+        <span style="display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;color:var(--muted)">
+          <span style="display:inline-block;width:12px;height:12px;background:#6b7280;border-radius:2px;opacity:0.35"></span> {{ t.maps_legend_available }}
+        </span>
+        <span style="display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;color:var(--muted)">
+          <span style="display:inline-block;width:12px;height:12px;background:#ef4444;border-radius:2px"></span> {{ t.maps_legend_overlap }}
+        </span>
+        <span style="display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;color:var(--muted)">
+          <span style="display:inline-block;width:12px;height:12px;border:1.5px dashed #7c8fff;border-radius:2px"></span> vanilla zones
+        </span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- How-to guide -->
+<div style="margin-top:24px;margin-bottom:16px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+  <div style="font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.08em;white-space:nowrap;padding-top:2px">// how to add maps</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1">
+    <div style="display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted)">
+      <span style="background:var(--accent);color:#000;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">1</span>
+      Search Workshop below &#x2192; <b style="color:var(--text)">Install</b>
+    </div>
+    <div style="color:var(--border2,#444);align-self:center">&#x2192;</div>
+    <div style="display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted)">
+      <span style="background:var(--accent);color:#000;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">2</span>
+      <b style="color:var(--text)">Restart server</b> &#x2192; downloads files
+    </div>
+    <div style="color:var(--border2,#444);align-self:center">&#x2192;</div>
+    <div style="display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted)">
+      <span style="background:var(--accent);color:#000;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">3</span>
+      Green banner appears &#x2192; <b style="color:#4ade80">Activate</b>
+    </div>
+    <div style="color:var(--border2,#444);align-self:center">&#x2192;</div>
+    <div style="display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted)">
+      <span style="background:var(--accent);color:#000;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">4</span>
+      <b style="color:var(--text)">Restart server</b> &#x2192; map is live
+    </div>
+  </div>
+</div>
+
+<!-- Workshop search — full width below the map -->
+<div class="sec-label">{{ t.maps_ws_label }}</div>
+<div class="card">
+  <div class="row" style="gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+    <div style="flex:2;min-width:220px;position:relative">
+      <input type="text" id="wsSearch" placeholder="{{ t.maps_ws_placeholder }}"
+             style="width:100%;padding-right:34px"
+             oninput="debouncedWorkshopSearch()"
+             onkeydown="if(event.key==='Enter'){clearTimeout(wsSearchDebounce);searchWorkshop()}"/>
+      <button type="button" id="wsClearBtn" onclick="clearWorkshopSearch()" title="{{ t.mods_close_btn }}"
+              style="display:none;position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0;line-height:1">x</button>
+    </div>
+    <select id="wsSort" style="flex:0 0 140px">
+      <option value="trend">{{ t.maps_ws_sort_trend }}</option>
+      <option value="totaluniquesubscribers">{{ t.maps_ws_sort_sub }}</option>
+      <option value="mostrecent">{{ t.maps_ws_sort_new }}</option>
+    </select>
+    <button class="btn btn-ghost" id="wsSearchBtn" onclick="searchWorkshop()">{{ t.maps_ws_search_btn }}</button>
+  </div>
+  <div id="wsMeta" style="margin-bottom:10px;font-family:var(--mono);font-size:11px;color:var(--muted)"></div>
+  <div id="wsResults"></div>
+  <div id="wsPagination" style="display:none;margin-top:14px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)"></div>
+</div>
+
+<!-- Manual install dialog -->
+<div id="manualDialog" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center">
+  <div class="card" style="max-width:400px;width:90%;padding:24px">
+    <div style="font-weight:700;margin-bottom:6px" id="manualTitle"></div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:12px">{{ t.mods_manual_desc }}</div>
+    <input type="text" id="manualModId" placeholder="{{ t.mods_manual_placeholder }}" style="width:100%;margin-bottom:12px"/>
+    <div class="row" style="gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost btn-sm" onclick="closeManual()">{{ t.mods_cancel_btn }}</button>
+      <button class="btn btn-primary btn-sm" onclick="submitManual()">{{ t.mods_confirm_btn }}</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+.maps-layout { display:flex; gap:20px; align-items:flex-start; }
+.maps-sidebar { width:270px; flex-shrink:0; }
+.maps-main { flex:1; min-width:0; }
+
+.map-item {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 10px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  margin-bottom:6px;
+}
+.map-dot { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
+.map-info { flex:1; min-width:0; }
+.map-name { font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.map-src  { font-family:var(--mono); font-size:10px; color:var(--muted); }
+.map-empty { font-family:var(--mono); font-size:11px; color:var(--muted); padding:4px 0; }
+.map-action {
+  min-width:74px;
+  padding:7px 10px;
+  border-radius:7px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:1.2px;
+}
+.map-action::before {
+  font-size:13px;
+  line-height:1;
+}
+.map-action.add::before { content:'+'; }
+.map-action.remove::before { content:'-'; }
+.map-action.loading {
+  opacity:.7;
+  pointer-events:none;
+}
+.map-action.loading::before {
+  content:'';
+  width:10px;
+  height:10px;
+  border:2px solid currentColor;
+  border-right-color:transparent;
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+.map-player-panel {
+  position:absolute;
+  top:10px;
+  right:10px;
+  z-index:10;
+  width:230px;
+  max-width:calc(100% - 68px);
+  background:rgba(10,12,15,0.86);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:10px;
+  backdrop-filter:blur(8px);
+}
+.map-player-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--accent);
+  letter-spacing:1.8px;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+.map-mini-btn {
+  width:24px;
+  height:24px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  color:var(--text);
+  border-radius:5px;
+  cursor:pointer;
+}
+.map-mini-btn:hover { border-color:var(--accent2); color:var(--accent2); }
+.map-health-card { margin-bottom:16px; }
+.map-health-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--muted);
+  letter-spacing:1px;
+  text-transform:uppercase;
+}
+.map-health-toggle {
+  flex:1;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:0;
+  background:none;
+  border:0;
+  color:inherit;
+  font:inherit;
+  letter-spacing:inherit;
+  text-transform:inherit;
+  cursor:pointer;
+  text-align:left;
+}
+.map-health-toggle:hover { color:var(--accent); }
+.map-health-list {
+  margin-top:8px;
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+}
+.map-health-list.collapsed {
+  display:none;
+}
+.map-health-item {
+  border:1px solid var(--border);
+  border-radius:7px;
+  padding:8px;
+  background:var(--surface2);
+}
+.map-health-item.error { border-color:rgba(239,68,68,0.45); }
+.map-health-item.warn { border-color:rgba(245,158,11,0.45); }
+.map-health-title {
+  font-size:11px;
+  font-weight:700;
+  line-height:1.3;
+}
+.map-health-detail {
+  margin-top:4px;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--muted);
+  line-height:1.35;
+}
+.map-health-actions {
+  margin-top:7px;
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.map-player-list {
+  max-height:145px;
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+.map-player-row {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 7px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:6px;
+  font-family:var(--mono);
+  font-size:11px;
+}
+.map-player-row input { width:auto; }
+.map-player-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-player-pos { color:var(--muted); font-size:9px; }
+.map-player-empty, .map-target-row {
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--muted);
+}
+.map-target-row {
+  margin-top:8px;
+  padding-top:8px;
+  border-top:1px solid var(--border);
+}
+.map-teleport-btn {
+  width:100%;
+  margin-top:8px;
+  font-family:var(--mono);
+}
+
+/* Workshop search results */
+.ws-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+.ws-card {
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  overflow:hidden; display:flex; flex-direction:column;
+}
+.ws-card img { width:100%; height:120px; object-fit:cover; background:#111; }
+.ws-card-body { padding:10px 12px; flex:1; display:flex; flex-direction:column; gap:6px; }
+.ws-card-title { font-size:12px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ws-card-author { font-family:var(--mono); font-size:10px; color:var(--muted); }
+.ws-card-footer { padding:8px 12px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:6px; }
+
+/* Map zoom buttons */
+.map-btn {
+  width:28px; height:28px;
+  background:rgba(18,18,32,0.88); border:1px solid var(--border);
+  color:var(--text); font-family:var(--mono); font-size:16px; font-weight:700;
+  border-radius:4px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  line-height:1; padding:0;
+  transition:background .15s;
+}
+.map-btn:hover { background:var(--surface2); }
+</style>
+<script>
+const COLORS = [
+  '#4ade80','#60a5fa','#f59e0b','#a78bfa','#fb923c',
+  '#34d399','#f472b6','#38bdf8','#facc15','#c084fc',
+];
+const colorMap = {};
+let colorIdx = 0;
+function getColor(id) {
+  if (!colorMap[id]) colorMap[id] = COLORS[colorIdx++ % COLORS.length];
+  return colorMap[id];
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return esc(s).replace(/'/g,'&#39;');
+}
+function hexToRgba(hex, a) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// ── Canvas Map ─────────────────────────────────────────────────────────────
+
+const canvas     = document.getElementById('mapCanvas');
+const ctx        = canvas.getContext('2d');
+const coordLabel = document.getElementById('coordLabel');
+
+function rectCells(x0, x1, y0, y1) {
+  const cells = [];
+  for (let x = x0; x <= x1; x++) {
+    for (let y = y0; y <= y1; y++) cells.push([x, y]);
+  }
+  return cells;
+}
+
+// Vanilla town footprints. These are intentionally narrower than broad region
+// boxes so map-mod conflicts are judged against the actual town footprint.
+const VANILLA_ZONES = [
+  { label: "Louisville",  cells: [
+    ...rectCells(41, 47, 4, 10),
+    ...rectCells(40, 48, 11, 13),
+    ...rectCells(45, 48, 3, 3),
+  ] },
+  { label: "Riverside",   cells: [
+    ...rectCells(12, 18, 17, 21),
+    ...rectCells(19, 20, 18, 20),
+  ] },
+  { label: "West Point",  cells: [
+    ...rectCells(35, 39, 22, 24),
+    ...rectCells(34, 34, 23, 24),
+  ] },
+  { label: "Muldraugh",   cells: [
+    ...rectCells(35, 38, 31, 35),
+    ...rectCells(34, 34, 32, 35),
+  ] },
+  { label: "Rosewood",    cells: [
+    ...rectCells(26, 29, 38, 40),
+    ...rectCells(25, 25, 39, 40),
+  ] },
+  { label: "March Ridge", cells: [
+    ...rectCells(31, 33, 42, 44),
+  ] },
+];
+
+const MIN_ZOOM = 1.5;
+const MAX_ZOOM = 80;
+let zoom = 12;
+let camX = 0, camY = 0;
+let _mapData = null;
+let _fitDone = false;
+let _players = [];
+let _selectedTarget = null;
+
+// Pan state
+let panning   = false;
+let panStart  = [0, 0];
+let camStart  = [0, 0];
+
+function syncSize() {
+  if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+    canvas.width  = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+  }
+}
+
+function w2s(wx, wy) { return [(wx - camX) * zoom, (wy - camY) * zoom]; }
+function s2w(sx, sy) { return [sx / zoom + camX, sy / zoom + camY]; }
+
+function fitCells(cells) {
+  if (!cells.length) return;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [cx, cy] of cells) {
+    if (cx < x0) x0 = cx; if (cx > x1) x1 = cx;
+    if (cy < y0) y0 = cy; if (cy > y1) y1 = cy;
+  }
+  const pad = 2;
+  const cw = x1 - x0 + 1 + pad * 2;
+  const ch = y1 - y0 + 1 + pad * 2;
+  zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM,
+    Math.min(canvas.clientWidth / cw, canvas.clientHeight / ch)));
+  camX = x0 - pad - (canvas.clientWidth  / zoom - (x1 - x0 + 1)) / 2;
+  camY = y0 - pad - (canvas.clientHeight / zoom - (y1 - y0 + 1)) / 2;
+}
+
+function baseMapId() {
+  return (_mapData && _mapData.baseMap) || 'Muldraugh, KY';
+}
+
+function vanillaZoneCells() {
+  const cells = [];
+  for (const z of VANILLA_ZONES) {
+    cells.push(...z.cells);
+  }
+  return cells;
+}
+
+function visibleFitCells() {
+  if (!_mapData) return vanillaZoneCells();
+  const base = baseMapId();
+  const mapCells = _mapData.maps
+    .filter(m => m.id !== base)
+    .flatMap(m => m.cells);
+  return mapCells.concat(vanillaZoneCells());
+}
+
+function draw() {
+  syncSize();
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#121220';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!_mapData) return;
+
+  const [wx0, wy0] = s2w(-1, -1);
+  const [wx1, wy1] = s2w(W + 1, H + 1);
+
+  const activeSet  = new Set(_mapData.active);
+  const overlapSet = new Set(_mapData.overlapping.map(([x, y]) => `${x},${y}`));
+
+  const sz  = zoom;
+  const gap = sz >= 4 ? Math.max(0.5, sz * 0.06) : 0;
+
+  // Available maps — dim gray
+  for (const m of _mapData.maps) {
+    if (m.id === baseMapId()) continue;
+    if (activeSet.has(m.id)) continue;
+    ctx.fillStyle = 'rgba(107,114,128,0.18)';
+    for (const [cx, cy] of m.cells) {
+      if (cx < wx0 || cx > wx1 || cy < wy0 || cy > wy1) continue;
+      const [sx, sy] = w2s(cx, cy);
+      ctx.fillRect(sx + gap, sy + gap, sz - gap * 2, sz - gap * 2);
+    }
+  }
+
+  // Active maps
+  for (const m of _mapData.maps) {
+    if (m.id === baseMapId()) continue;
+    if (!activeSet.has(m.id)) continue;
+    ctx.fillStyle = hexToRgba(getColor(m.id), 0.65);
+    for (const [cx, cy] of m.cells) {
+      if (cx < wx0 || cx > wx1 || cy < wy0 || cy > wy1) continue;
+      if (overlapSet.has(`${cx},${cy}`)) continue;
+      const [sx, sy] = w2s(cx, cy);
+      ctx.fillRect(sx + gap, sy + gap, sz - gap * 2, sz - gap * 2);
+    }
+  }
+
+  // Overlapping cells — red on top
+  ctx.fillStyle = 'rgba(239,68,68,0.9)';
+  for (const [cx, cy] of _mapData.overlapping) {
+    if (cx < wx0 || cx > wx1 || cy < wy0 || cy > wy1) continue;
+    const [sx, sy] = w2s(cx, cy);
+    ctx.fillRect(sx + gap, sy + gap, sz - gap * 2, sz - gap * 2);
+  }
+
+  // Vanilla town cell outlines
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = 'rgba(124,143,255,0.7)';
+  ctx.fillStyle = 'rgba(124,143,255,0.045)';
+  for (const z of VANILLA_ZONES) {
+    for (const [cx, cy] of z.cells) {
+      if (cx < wx0 || cx > wx1 || cy < wy0 || cy > wy1) continue;
+      const [sx, sy] = w2s(cx, cy);
+      ctx.fillRect(sx + gap, sy + gap, sz - gap * 2, sz - gap * 2);
+      ctx.strokeRect(sx + 0.5, sy + 0.5, sz - 1, sz - 1);
+    }
+  }
+  ctx.setLineDash([]);
+
+  // Zone labels
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  for (const z of VANILLA_ZONES) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const [cx, cy] of z.cells) {
+      if (cx < x0) x0 = cx; if (cx > x1) x1 = cx;
+      if (cy < y0) y0 = cy; if (cy > y1) y1 = cy;
+    }
+    const [sx0, sy0] = w2s(x0, y0);
+    const [sx1, sy1] = w2s(x1 + 1, y1 + 1);
+    const lx = (sx0 + sx1) / 2;
+    const ly = (sy0 + sy1) / 2;
+    const fs = Math.max(9, Math.min(13, sz * 1.1));
+    ctx.font      = `bold ${fs}px 'Share Tech Mono', monospace`;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillText(z.label, lx + 1, ly + 1);
+    ctx.fillStyle = 'rgba(124,143,255,0.9)';
+    ctx.fillText(z.label, lx, ly);
+  }
+
+  // Selected teleport target
+  if (_selectedTarget) {
+    const [sx, sy] = w2s(_selectedTarget.cellX + 0.5, _selectedTarget.cellY + 0.5);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(250,204,21,0.95)';
+    ctx.fillStyle = 'rgba(250,204,21,0.2)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(sx, sy, Math.max(7, Math.min(14, zoom * 0.45)), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx - 10, sy);
+    ctx.lineTo(sx + 10, sy);
+    ctx.moveTo(sx, sy - 10);
+    ctx.lineTo(sx, sy + 10);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Player markers. Vanilla console does not expose live coordinates, so these
+  // are shown when the panel has a known position, such as after teleport.
+  for (const p of _players) {
+    if (p.cellX == null || p.cellY == null) continue;
+    const [sx, sy] = w2s(p.cellX + 0.5, p.cellY + 0.5);
+    ctx.save();
+    ctx.fillStyle = 'rgba(56,189,248,0.95)';
+    ctx.strokeStyle = 'rgba(2,6,23,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = `bold 11px 'Share Tech Mono', monospace`;
+    ctx.fillStyle = 'rgba(212,220,232,0.95)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = 3;
+    ctx.strokeText(p.name, sx + 9, sy + 4);
+    ctx.fillText(p.name, sx + 9, sy + 4);
+    ctx.restore();
+  }
+
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+
+function zoomBy(factor, cx, cy) {
+  if (cx == null) { cx = canvas.clientWidth / 2; cy = canvas.clientHeight / 2; }
+  const [wx, wy] = s2w(cx, cy);
+  zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor));
+  camX = wx - cx / zoom;
+  camY = wy - cy / zoom;
+  draw();
+}
+
+function fitAll() {
+  if (!_mapData) return;
+  const all = visibleFitCells();
+  if (all.length) { syncSize(); fitCells(all); draw(); }
+}
+
+// Scroll-wheel zoom (centred on cursor)
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  zoomBy(e.deltaY < 0 ? 1.12 : 1/1.12, e.clientX - rect.left, e.clientY - rect.top);
+}, { passive: false });
+
+// Pan
+canvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  panning  = true;
+  panStart = [e.clientX, e.clientY];
+  camStart = [camX, camY];
+  canvas.style.cursor = 'grabbing';
+});
+canvas.addEventListener('click', e => {
+  if (Math.abs(e.clientX - panStart[0]) > 4 || Math.abs(e.clientY - panStart[1]) > 4) return;
+  const rect = canvas.getBoundingClientRect();
+  const [wx, wy] = s2w(e.clientX - rect.left, e.clientY - rect.top);
+  setTeleportTarget(Math.floor(wx), Math.floor(wy));
+});
+window.addEventListener('mousemove', e => {
+  if (panning) {
+    camX = camStart[0] - (e.clientX - panStart[0]) / zoom;
+    camY = camStart[1] - (e.clientY - panStart[1]) / zoom;
+    draw();
+  }
+  if (e.target === canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const [wx, wy] = s2w(e.clientX - rect.left, e.clientY - rect.top);
+    coordLabel.textContent = `cell ${Math.floor(wx)}, ${Math.floor(wy)}`;
+    coordLabel.style.display = 'block';
+  }
+});
+window.addEventListener('mouseup', () => {
+  if (panning) { panning = false; canvas.style.cursor = 'grab'; }
+});
+canvas.addEventListener('mouseleave', () => { coordLabel.style.display = 'none'; });
+
+// Resize
+window.addEventListener('resize', draw);
+
+// ── Sidebar ─────────────────────────────────────────────────────────────────
+
+function renderMap(data) {
+  _mapData = data;
+  data.active.forEach(id => getColor(id));
+  if (!_fitDone) {
+    const all = visibleFitCells();
+    if (all.length) {
+      _fitDone = true;
+      syncSize();
+      fitCells(all);
+    }
+  }
+  draw();
+  document.getElementById('overlapBanner').style.display =
+    data.overlapping.length ? 'block' : 'none';
+}
+
+function renderSidebar(data) {
+  const activeSet  = new Set(data.active);
+  const baseMap    = data.baseMap || 'Muldraugh, KY';
+  const activeMaps = data.active.map(id => {
+    const found = data.maps.find(m => m.id === id);
+    return found || {
+      id,
+      title: id,
+      source: T.maps_pending_files || 'files not scanned yet',
+      cells: [],
+      missingFiles: true,
+    };
+  });
+  const availMaps  = data.maps.filter(m => !activeSet.has(m.id));
+
+  const activeEl = document.getElementById('activeMaps');
+  activeEl.innerHTML = activeMaps.length === 0
+    ? `<div class="map-empty">${T.maps_no_active}</div>`
+    : activeMaps.map((m, i) => {
+        const color  = getColor(m.id);
+        const isBase = m.id === baseMap;
+        const cellText = m.missingFiles ? (T.maps_waiting_download || 'waiting for downloaded files') : `${m.cells.length} cells`;
+        return `<div class="map-item">
+          <div class="map-dot" style="background:${color}"></div>
+          <div class="map-info">
+            <div class="map-name" title="${esc(m.id)}">${esc(m.title)}</div>
+            <div class="map-src">${esc(m.source)} &middot; ${esc(cellText)}</div>
+          </div>
+          ${isBase
+            ? `<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${T.maps_base}</span>`
+            : `<button type="button" class="btn btn-red btn-sm map-action remove" data-map-action="remove" data-map-id="${esc(m.id)}">${T.maps_remove_btn}</button>`}
+        </div>`;
+      }).join('');
+
+  const availEl = document.getElementById('availableMaps');
+  availEl.innerHTML = availMaps.length === 0
+    ? `<div class="map-empty">${T.maps_no_available}</div>`
+    : availMaps.map(m => `<div class="map-item">
+        <div class="map-dot" style="background:var(--border2,#444)"></div>
+        <div class="map-info">
+          <div class="map-name" title="${esc(m.id)}">${esc(m.title)}</div>
+          <div class="map-src">${esc(m.source)} &middot; ${m.cells.length} cells</div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm map-action add" data-map-action="add" data-map-id="${esc(m.id)}">${T.maps_add_btn}</button>
+      </div>`).join('');
+}
+
+document.getElementById('activeMaps').addEventListener('click', handleMapAction);
+document.getElementById('availableMaps').addEventListener('click', handleMapAction);
+
+function handleMapAction(e) {
+  const btn = e.target.closest('[data-map-action]');
+  if (!btn) return;
+  const id = btn.dataset.mapId;
+  if (!id) return;
+  if (btn.dataset.mapAction === 'add') doAdd(id, btn);
+  if (btn.dataset.mapAction === 'remove') doRemove(id, btn);
+}
+
+function setMapActionLoading(btn, loading) {
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.classList.toggle('loading', loading);
+}
+
+// ── Players / teleport ───────────────────────────────────────────────────────
+
+function selectedPlayerNames() {
+  return Array.from(document.querySelectorAll('.map-player-check:checked')).map(el => el.value);
+}
+
+function updateTeleportButton() {
+  const btn = document.getElementById('mapTeleportBtn');
+  btn.disabled = !_selectedTarget || selectedPlayerNames().length === 0;
+}
+
+function setTeleportTarget(cellX, cellY) {
+  _selectedTarget = {
+    cellX,
+    cellY,
+    x: cellX * 300 + 150,
+    y: cellY * 300 + 150,
+    z: 0,
+  };
+  document.getElementById('mapTargetText').textContent =
+    `${T.maps_target_label}: cell ${cellX},${cellY} / ${_selectedTarget.x},${_selectedTarget.y},0`;
+  updateTeleportButton();
+  draw();
+}
+
+function renderPlayers(players, liveCoordinates) {
+  _players = players || [];
+  const el = document.getElementById('mapPlayers');
+  if (!_players.length) {
+    el.innerHTML = `<div class="map-player-empty">${T.maps_players_empty}</div>`;
+    updateTeleportButton();
+    draw();
+    return;
+  }
+  el.innerHTML = _players.map(p => {
+    const pos = p.cellX == null
+      ? T.maps_player_pos_unknown
+      : `cell ${p.cellX},${p.cellY}`;
+    return `<label class="map-player-row">
+      <input type="checkbox" class="map-player-check" value="${esc(p.name)}" onchange="updateTeleportButton()"/>
+      <span class="map-player-name" title="${esc(p.name)}">${esc(p.name)}</span>
+      <span class="map-player-pos">${esc(pos)}</span>
+    </label>`;
+  }).join('');
+  updateTeleportButton();
+  draw();
+}
+
+async function loadPlayers() {
+  try {
+    const r = await fetch('/maps/api/players');
+    const d = await r.json();
+    renderPlayers(d.players || [], !!d.liveCoordinates);
+  } catch(e) {
+    document.getElementById('mapPlayers').innerHTML = `<div class="map-player-empty">${T.maps_players_error}</div>`;
+  }
+}
+
+async function teleportSelected() {
+  const players = selectedPlayerNames();
+  if (!_selectedTarget || !players.length) return;
+  const btn = document.getElementById('mapTeleportBtn');
+  btn.disabled = true;
+  btn.textContent = T.maps_teleporting;
+  try {
+    const r = await fetch('/maps/api/teleport', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ players, ..._selectedTarget }),
+    });
+    const d = await r.json();
+    if (d.success || (d.sent && d.sent.length)) {
+      toast(d.message || T.maps_teleport_sent, d.success ? 'ok' : 'warn');
+      await loadPlayers();
+    } else {
+      toast(d.message || T.maps_teleport_error, 'err');
+    }
+  } catch(e) {
+    toast(T.maps_teleport_error + ': ' + e.message, 'err');
+  } finally {
+    btn.textContent = T.maps_teleport_btn;
+    updateTeleportButton();
+  }
+}
+
+// ── Pending maps banner ──────────────────────────────────────────────────────
+
+let _pendingMaps = [];
+
+function renderPendingBanner(pending) {
+  _pendingMaps = pending || [];
+  const banner = document.getElementById('pendingBanner');
+  const txt    = document.getElementById('pendingBannerText');
+  if (_pendingMaps.length === 0) {
+    banner.style.display = 'none';
+  } else {
+    txt.textContent = `⚡ ${_pendingMaps.length} map(s) downloaded & ready to activate: ${_pendingMaps.join(', ')}`;
+    banner.style.display = 'block';
+  }
+}
+
+// ── Map health ───────────────────────────────────────────────────────────────
+
+let _mapHealthExpanded = false;
+
+function setMapHealthExpanded(expanded) {
+  _mapHealthExpanded = expanded;
+  const list = document.getElementById('mapHealthList');
+  const chevron = document.getElementById('mapHealthChevron');
+  if (list) list.classList.toggle('collapsed', !expanded);
+  if (chevron) chevron.innerHTML = expanded ? '&#x25B4;' : '&#x25BE;';
+}
+
+function toggleMapHealth() {
+  setMapHealthExpanded(!_mapHealthExpanded);
+}
+
+function renderMapHealth(data) {
+  const status = document.getElementById('mapHealthStatus');
+  const list = document.getElementById('mapHealthList');
+  const issues = data.issues || [];
+  if (!issues.length) {
+    status.textContent = T.maps_health_ok;
+    list.innerHTML = `<div class="map-empty">${T.maps_health_no_issues}</div>`;
+    setMapHealthExpanded(false);
+    return;
+  }
+
+  const errors = issues.filter(i => i.severity === 'error').length;
+  const warningCount = issues.length - errors;
+  status.textContent = errors
+    ? fmt(T.maps_health_compact_errors || '{errors} errors · {warnings} warnings', {errors, warnings: warningCount})
+    : fmt(T.maps_health_warnings || '{n} warning(s)', {n: issues.length});
+
+  list.innerHTML = issues.map(issue => {
+    const cells = issue.cellCount
+      ? `<div class="map-health-detail">${fmt(T.maps_health_cells || '{n} generated cell(s): {cells}', {
+          n: issue.cellCount,
+          cells: (issue.cells || []).map(c => c.join(',')).join(' ')
+        })}</div>`
+      : '';
+    let action = '';
+    if (issue.action === 'activate_map') {
+      action = `<button type="button" class="btn btn-primary btn-sm" data-health-action="activate" data-map-id="${escAttr(issue.mapId)}">${T.maps_health_activate}</button>`;
+    } else if (issue.action === 'add_spawn_region') {
+      action = `<button type="button" class="btn btn-primary btn-sm" data-health-action="spawn" data-map-id="${escAttr(issue.mapId)}">${T.maps_health_spawn_add}</button>`;
+    }
+    return `<div class="map-health-item ${esc(issue.severity || 'warn')}">
+      <div class="map-health-title">${esc(issue.title)}</div>
+      <div class="map-health-detail">${esc(issue.detail || '')}</div>
+      ${cells}
+      ${action ? `<div class="map-health-actions">${action}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('mapHealthList').addEventListener('click', e => {
+  const btn = e.target.closest('[data-health-action]');
+  if (!btn) return;
+  if (btn.dataset.healthAction === 'activate') doAdd(btn.dataset.mapId, btn);
+  if (btn.dataset.healthAction === 'spawn') addSpawnRegion(btn.dataset.mapId);
+});
+
+async function loadMapHealth() {
+  try {
+    const r = await fetch('/maps/api/health');
+    const d = await r.json();
+    renderMapHealth(d);
+  } catch(e) {
+    document.getElementById('mapHealthStatus').textContent = T.maps_error;
+    document.getElementById('mapHealthList').innerHTML = `<div class="map-empty">${T.maps_health_error}</div>`;
+  }
+}
+
+async function addSpawnRegion(mapId) {
+  try {
+    const r = await fetch('/maps/api/spawn-region', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mapId }),
+    });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('restartHint').style.display = 'block';
+      toast(d.message || T.maps_health_spawn_added, 'ok');
+      await loadMapHealth();
+    } else {
+      toast(d.message || T.maps_error, 'err');
+    }
+  } catch(e) {
+    toast(T.maps_error + ': ' + e.message, 'err');
+  }
+}
+
+async function activatePending() {
+  for (const id of _pendingMaps) {
+    await fetch('/maps/api/add', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id }),
+    });
+  }
+  await loadData();
+  markInstalledResults();
+  document.getElementById('restartHint').style.display = 'block';
+  toast('Maps activated — restart server to apply.', 'ok');
+}
+
+// ── Data loading ─────────────────────────────────────────────────────────────
+
+let _installedWids = new Set();
+
+async function loadData() {
+  try {
+    const r    = await fetch('/maps/api/data');
+    const data = await r.json();
+    _installedWids = new Set(data.installedWorkshopIds || []);
+    renderMap(data);
+    renderSidebar(data);
+    renderPendingBanner(data.pendingMaps || []);
+    await loadMapHealth();
+  } catch(e) {
+    toast('Failed to load map data', 'err');
+  }
+}
+
+async function doAdd(id, btn) {
+  setMapActionLoading(btn, true);
+  try {
+    const r = await fetch('/maps/api/add', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('restartHint').style.display = 'block';
+      const added = d.added || [];
+      toast(added.length > 1 ? `${T.maps_added}: ${added.join(', ')}` : T.maps_added, 'ok');
+      await loadData(); markInstalledResults();
+    } else toast(d.message || T.maps_error, 'err');
+  } catch(e) {
+    toast(T.maps_error + ': ' + e.message, 'err');
+  } finally {
+    setMapActionLoading(btn, false);
+  }
+}
+
+async function doRemove(id, btn) {
+  setMapActionLoading(btn, true);
+  try {
+    const r = await fetch('/maps/api/remove', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('restartHint').style.display = 'block';
+      const removed = d.removed || [];
+      toast(removed.length > 1 ? `${T.maps_removed}: ${removed.join(', ')}` : T.maps_removed, 'ok');
+      await loadData(); markInstalledResults();
+    } else toast(d.message || T.maps_error, 'err');
+  } catch(e) {
+    toast(T.maps_error + ': ' + e.message, 'err');
+  } finally {
+    setMapActionLoading(btn, false);
+  }
+}
+
+// ── Workshop search ───────────────────────────────────────────────────────────
+
+let wsPage = 1, wsTotalPages = 1;
+let wsSearchDebounce = null;
+let _pendingInstallWid = null;
+
+function relevanceScore(item, query) {
+  const q = query.toLowerCase().trim();
+  if (!q) return 0;
+  const name = String(item.name || '').toLowerCase();
+  const author = String(item.author || '').toLowerCase();
+  if (name === q) return 100;
+  if (name.startsWith(q + ' ')) return 92;
+  if (name.startsWith(q)) return 86;
+  if (name.includes(q)) return 76;
+
+  const words = q.split(/\s+/).filter(Boolean);
+  if (words.length > 1) {
+    let pos = 0;
+    const inOrder = words.every(w => {
+      const idx = name.indexOf(w, pos);
+      if (idx === -1) return false;
+      pos = idx + w.length;
+      return true;
+    });
+    if (inOrder) return 66;
+    if (words.every(w => name.includes(w))) return 56;
+    const hits = words.filter(w => name.includes(w)).length;
+    if (hits) return 20 + (hits / words.length) * 25;
+  }
+  if (author.includes(q)) return 12;
+  return 0;
+}
+
+function rankWorkshopResults(items, query) {
+  if (!query.trim()) return items;
+  return items
+    .map((item, index) => ({ item, index, score: relevanceScore(item, query) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(x => x.item);
+}
+
+function highlightMatch(text, query) {
+  const raw = String(text || '');
+  const q = query.trim();
+  if (!q) return esc(raw);
+  const idx = raw.toLowerCase().indexOf(q.toLowerCase());
+  if (idx !== -1) {
+    return esc(raw.slice(0, idx)) + '<mark>' + esc(raw.slice(idx, idx + q.length)) + '</mark>' + esc(raw.slice(idx + q.length));
+  }
+  let result = esc(raw);
+  q.split(/\s+/).filter(Boolean).forEach(word => {
+    const re = new RegExp('(' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    result = result.replace(re, '<mark>$1</mark>');
+  });
+  return result;
+}
+
+function debouncedWorkshopSearch() {
+  const q = document.getElementById('wsSearch').value.trim();
+  document.getElementById('wsClearBtn').style.display = q ? '' : 'none';
+  clearTimeout(wsSearchDebounce);
+  wsSearchDebounce = setTimeout(() => searchWorkshop(), 450);
+}
+
+function clearWorkshopSearch() {
+  document.getElementById('wsSearch').value = '';
+  document.getElementById('wsClearBtn').style.display = 'none';
+  searchWorkshop();
+}
+
+async function searchWorkshop(resetPage = true) {
+  if (resetPage) wsPage = 1;
+  const q    = document.getElementById('wsSearch').value.trim();
+  const sort = document.getElementById('wsSort').value;
+  const el   = document.getElementById('wsResults');
+  const meta = document.getElementById('wsMeta');
+  const btn  = document.getElementById('wsSearchBtn');
+  btn.disabled = true;
+  meta.textContent = '';
+  el.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:8px 0">${T.maps_ws_searching}</div>`;
+  document.getElementById('wsPagination').style.display = 'none';
+  try {
+    const r = await fetch(`/maps/api/workshop-search?q=${encodeURIComponent(q)}&sort=${sort}&page=${wsPage}`);
+    const d = await r.json();
+    wsTotalPages = d.totalPages || 1;
+    const ranked = rankWorkshopResults(d.items || [], q);
+    meta.textContent = fmt(T.maps_ws_results_meta || '{n} results · page {p} / {t}', {n: ranked.length, p: wsPage, t: wsTotalPages});
+    renderWsResults(ranked, q);
+  } catch(e) {
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:#ef4444;padding:8px 0">${T.maps_error}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderWsResults(items, query = '') {
+  const el = document.getElementById('wsResults');
+  if (items.length === 0) {
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:8px 0">${T.maps_ws_no_results}</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="ws-grid">${items.map(item => {
+    const installed = _installedWids.has(item.workshopId);
+    const steamUrl = `https://steamcommunity.com/sharedfiles/filedetails/?id=${encodeURIComponent(item.workshopId)}`;
+    const img = item.preview
+      ? `<img src="${esc(item.preview)}" loading="lazy" onerror="this.style.display='none'"/>`
+      : `<div style="height:120px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:24px">&#x1F5FA;</div>`;
+    return `<div class="ws-card">
+      ${img}
+      <div class="ws-card-body">
+        <div class="ws-card-title" title="${esc(item.name)}">${highlightMatch(item.name, query)}</div>
+        ${item.author ? `<div class="ws-card-author">by ${esc(item.author)}</div>` : ''}
+        <div class="ws-card-author">workshop ${esc(item.workshopId)}</div>
+      </div>
+      <div class="ws-card-footer">
+        ${installed
+          ? `<span class="badge" style="font-family:var(--mono);font-size:10px">&#x2713; ${T.maps_ws_installed}</span>`
+          : `<button class="btn btn-primary btn-sm" onclick="installMapFromButton(this)" data-wid="${esc(item.workshopId)}" data-name="${esc(item.name)}" id="ws-btn-${item.workshopId}">${T.maps_ws_install_btn}</button>`
+        }
+        <a class="btn btn-ghost btn-sm" href="${steamUrl}" target="_blank" rel="noopener noreferrer">Steam</a>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+
+  renderWorkshopPagination();
+}
+
+function renderWorkshopPagination() {
+  const pag = document.getElementById('wsPagination');
+  if (wsTotalPages <= 1) {
+    pag.style.display = 'none';
+    pag.innerHTML = '';
+    return;
+  }
+
+  const buttons = [];
+  buttons.push(`<button class="btn btn-ghost btn-sm" ${wsPage === 1 ? 'disabled' : ''} onclick="wsGoToPage(1)">&#171;</button>`);
+  buttons.push(`<button class="btn btn-ghost btn-sm" ${wsPage === 1 ? 'disabled' : ''} onclick="wsChangePage(-1)">&#8249;</button>`);
+
+  const maxButtons = 7;
+  let start = Math.max(1, wsPage - Math.floor(maxButtons / 2));
+  let end = Math.min(wsTotalPages, start + maxButtons - 1);
+  if (end - start + 1 < maxButtons) start = Math.max(1, end - maxButtons + 1);
+
+  if (start > 1) buttons.push(`<span style="color:var(--muted);padding:0 4px">...</span>`);
+  for (let i = start; i <= end; i++) {
+    buttons.push(`<button class="btn btn-${i === wsPage ? 'primary' : 'ghost'} btn-sm" onclick="wsGoToPage(${i})">${i}</button>`);
+  }
+  if (end < wsTotalPages) buttons.push(`<span style="color:var(--muted);padding:0 4px">...</span>`);
+
+  buttons.push(`<button class="btn btn-ghost btn-sm" ${wsPage >= wsTotalPages ? 'disabled' : ''} onclick="wsChangePage(1)">&#8250;</button>`);
+  buttons.push(`<button class="btn btn-ghost btn-sm" ${wsPage >= wsTotalPages ? 'disabled' : ''} onclick="wsGoToPage(${wsTotalPages})">&#187;</button>`);
+
+  pag.innerHTML = `<div style="display:flex;gap:4px;align-items:center;justify-content:center;flex-wrap:wrap">${buttons.join('')}<span style="margin-left:10px">${fmt(T.maps_ws_page_of || 'Page {p} / {t}', {p: wsPage, t: wsTotalPages})}</span></div>`;
+  pag.style.display = 'block';
+}
+
+function markInstalledResults() {
+  document.querySelectorAll('[id^="ws-btn-"]').forEach(btn => {
+    const wid = btn.id.replace('ws-btn-', '');
+    if (_installedWids.has(wid))
+      btn.outerHTML = `<span class="badge" style="font-family:var(--mono);font-size:10px">&#x2713; ${T.maps_ws_installed}</span>`;
+  });
+}
+
+async function wsChangePage(delta) {
+  wsPage = Math.max(1, Math.min(wsTotalPages, wsPage + delta));
+  await searchWorkshop(false);
+}
+
+async function wsGoToPage(page) {
+  if (page < 1 || page > wsTotalPages || page === wsPage) return;
+  wsPage = page;
+  await searchWorkshop(false);
+  document.getElementById('wsResults').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function installMapFromButton(btn) {
+  installMap(btn.dataset.wid, btn.dataset.name || btn.dataset.wid);
+}
+
+async function installMap(wid, name) {
+  const btn = document.getElementById(`ws-btn-${wid}`);
+  if (btn) { btn.disabled = true; btn.textContent = T.maps_ws_installing; }
+  try {
+    const r = await fetch('/maps/api/install', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ workshopId: wid }),
+    });
+    const d = await r.json();
+    if (d.success) {
+      _installedWids.add(wid);
+      if (btn) btn.outerHTML = `<span class="badge" style="font-family:var(--mono);font-size:10px">&#x2713; ${T.maps_ws_installed}</span>`;
+      toast(d.needsDownload ? T.maps_ws_needs_dl : T.maps_ws_added_to_map, 'ok');
+      document.getElementById('restartHint').style.display = 'block';
+      await loadData();
+    } else if (d.needManualModId) {
+      _pendingInstallWid = wid;
+      document.getElementById('manualTitle').textContent = name || d.name || wid;
+      document.getElementById('manualModId').value = '';
+      document.getElementById('manualDialog').style.display = 'flex';
+      if (btn) { btn.disabled = false; btn.textContent = T.maps_ws_install_btn; }
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = T.maps_ws_install_btn; }
+      toast(d.message || T.maps_error, 'err');
+    }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = T.maps_ws_install_btn; }
+    toast(T.maps_error, 'err');
+  }
+}
+
+function closeManual() {
+  document.getElementById('manualDialog').style.display = 'none';
+  _pendingInstallWid = null;
+}
+
+async function submitManual() {
+  const modId = document.getElementById('manualModId').value.trim();
+  if (!modId || !_pendingInstallWid) return;
+  const wid = _pendingInstallWid;
+  closeManual();
+  _pendingInstallWid = null;
+  const btn = document.getElementById(`ws-btn-${wid}`);
+  if (btn) { btn.disabled = true; btn.textContent = T.maps_ws_installing; }
+  const r = await fetch('/maps/api/install', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ workshopId: wid, modId }),
+  });
+  const d = await r.json();
+  if (d.success) {
+    _installedWids.add(wid);
+    if (btn) btn.outerHTML = `<span class="badge" style="font-family:var(--mono);font-size:10px">&#x2713; ${T.maps_ws_installed}</span>`;
+    toast(d.needsDownload ? T.maps_ws_needs_dl : T.maps_ws_added_to_map, 'ok');
+    document.getElementById('restartHint').style.display = 'block';
+    await loadData();
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = T.maps_ws_install_btn; }
+    toast(d.message || T.maps_error, 'err');
+  }
+}
+
+loadData();
+loadPlayers();
+setInterval(loadPlayers, 10000);
+searchWorkshop();
+document.getElementById('wsSort').addEventListener('change', () => searchWorkshop());
+</script>
+{% endblock %}

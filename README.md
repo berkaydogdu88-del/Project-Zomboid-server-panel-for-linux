@@ -1,6 +1,6 @@
 # Project Zomboid Server Panel for Linux
 
-A web-based control panel for managing a Project Zomboid Dedicated Server on Linux. Manage mods, sandbox settings, game worlds, and the server process — all from your browser.
+A web-based control panel for managing a Project Zomboid Dedicated Server on Linux. Manage mods, maps, sandbox settings, game worlds, admin powers, and the server process — all from your browser.
 
 > **Language / Dil:** [English](#english) · [Türkçe](#türkçe)
 
@@ -12,9 +12,11 @@ A web-based control panel for managing a Project Zomboid Dedicated Server on Lin
 ## Features
 
 - **Mod Management** — Search Steam Workshop by keyword or URL, auto-resolve all dependencies, drag-and-drop load order reordering, and category filtering
+- **Map Management** — Visual map grid showing which cells each map covers, add/remove workshop maps, detect overlapping cells (which crash the server), manage spawn regions, teleport players to any map location
 - **Sandbox Configuration** — Browse and edit every `SandboxVars.lua` setting (vanilla + mod settings) through a clean tabbed UI without touching any files manually
 - **World Management** — List all save files, create compressed `.tar.gz` backups, restore from a backup, and delete worlds safely
 - **Real-time Terminal** — Start, stop, and restart the server; stream live logs directly in the browser; send console commands without SSH
+- **Admin / Cheats** — Search and give any item or spawn any vehicle to online players; toggle god mode; max all skills; kick players; assign access levels; trigger server events (helicopter, gunshot, rain, thunder); broadcast messages
 
 ## Screenshots
 
@@ -191,7 +193,7 @@ Your friends need to:
 3. You authorize them on the ZeroTier Central dashboard (tick **Auth** next to their machine)
 4. Connect in Project Zomboid: **Join → Enter your ZeroTier IP → Port 16261**
 
-> The panel itself (port `8621`) is also accessible to anyone on the ZeroTier network. If you don't want friends controlling the panel, only share the game IP, not the panel URL.
+> **Important:** The panel (port `8621`) is also reachable by anyone on your ZeroTier network. See the Security section below for how to lock it down.
 
 ---
 
@@ -201,10 +203,57 @@ Your friends need to:
 |---|---|
 | **Terminal** | Start/stop/restart the server. Displays live server logs. Type commands into the input box to send them directly to the server (e.g. `servermsg "Hello"`, `adduser`, `chopper`). |
 | **Mods** | Search Steam Workshop, view mod details, add mods with auto-resolved dependencies, drag rows to reorder load order, remove mods. |
+| **Maps** | Visual cell grid showing which areas each map covers. Add or remove workshop maps, detect overlapping cells (which can crash the server), manage spawn regions, and teleport online players to any map location. |
 | **Sandbox** | Edit all sandbox settings (loot, zombie speed, XP multiplier, etc.) grouped by category. Mod-added settings appear under their own tab. |
 | **World** | View all save files, create/restore/delete backups. The server must be stopped before restoring or deleting a world. |
+| **Cheats** | Give any item or spawn any vehicle to online players. Toggle god mode, max all skills, kick players, set access levels, trigger server events (helicopter, gunshot, rain), and broadcast messages to everyone. |
 
 The interface is available in **English** and **Turkish** — switch via the language selector in the top navigation bar.
+
+---
+
+## Security — Read Before Sharing
+
+> **This panel has no login system.** Anyone who can reach the URL has full admin control over your server. This was built for personal use on a trusted private network.
+
+### What the panel can do
+
+- Start, stop, and restart your server
+- Give any item, spawn vehicles, toggle god mode, kick and set access levels for players
+- Delete game worlds (this is irreversible without a backup)
+- Read and overwrite your server config files (`servertest.ini`, `SandboxVars.lua`, spawn regions)
+
+### What you should know before using it
+
+| Risk | What to do |
+|---|---|
+| **Panel exposed to friends on ZeroTier** | The panel binds to all interfaces (`0.0.0.0`). Anyone on your ZeroTier network can reach port `8621`. Block it with: `sudo ufw deny in on ztXXXXXX to any port 8621` — replace `ztXXXXXX` with your ZeroTier interface name. |
+| **Panel exposed on your local network** | If others are on the same LAN (office, dorm, shared Wi-Fi), they can reach the panel. Run the panel only on a private home network, or bind it to `127.0.0.1` only by editing the last line of `app.py`: change `host="0.0.0.0"` to `host="127.0.0.1"`. |
+| **Never expose it to the public internet** | Do not forward port `8621` in your router. Do not put it behind a public reverse proxy without adding authentication yourself. |
+| **Accidental world deletion** | The World tab can permanently delete saves. Always create a backup before touching the delete button. |
+| **Cheats tab is very powerful** | It can wipe skills, kick anyone, assign admin roles. Don't run the panel on a shared machine where others have browser access. |
+
+### Quick lockdown if you only need local access
+
+Edit the last line of `app.py`:
+```python
+# Before (accessible from the whole network):
+app.run(host="0.0.0.0", port=8621, debug=False, threaded=True)
+
+# After (localhost only — only you can reach it):
+app.run(host="127.0.0.1", port=8621, debug=False, threaded=True)
+```
+
+---
+
+## Tips and Things to Know
+
+- **Map changes require a server restart** — Adding or removing a map in the Maps tab writes to `servertest.ini` immediately, but the server reads that file only on startup.
+- **Workshop items need a server restart to download** — When you add a mod or map through the panel, it updates the INI file. The actual files are downloaded by the server on its next startup via SteamCMD.
+- **Map overlaps crash the server** — The Maps tab warns you when two active maps share cells. Remove one of the conflicting maps before starting the server.
+- **Adding a map to an existing world** — If a mod map's cells were already generated as vanilla terrain in your current save, the new map won't fully overwrite them. The Maps tab will warn you about this. Starting a fresh world is the cleanest solution.
+- **The Cheats item list is built from your active mods** — It parses script files from the server's media folder and your installed mods. It only shows items from mods that are currently active in `servertest.ini`.
+- **Backups are stored locally** — The World tab backups are `.tar.gz` archives saved to `~/Zomboid/Backups`. Copy them off the machine periodically if you care about the save.
 
 ---
 
@@ -220,7 +269,9 @@ pz_panel/
 │   ├── server_manager.py   # PTY process manager, 2000-line log buffer
 │   ├── mods.py             # Steam Workshop search, dependency resolver
 │   ├── sandbox.py          # SandboxVars.lua parser and editor
-│   └── world.py            # Save backup / restore / delete
+│   ├── world.py            # Save backup / restore / delete
+│   ├── maps.py             # Map grid, add/remove/overlap detection, teleport
+│   └── cheats.py           # Item browser, give items, admin power actions
 ├── templates/              # Jinja2 HTML templates (one per tab)
 ├── static/style.css        # All frontend styling
 └── translations/
@@ -237,6 +288,9 @@ pz_panel/
 | Panel opens but server won't start | Check that `SERVER_DIR` in `config.py` points to the folder containing `start-server.sh`. Run `ls "$HOME/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server"` to verify. |
 | `servertest.ini` not found / Sandbox tab is empty | Run the server once manually (`bash start-server.sh`) to generate the config files, then restart the panel. |
 | Mod tab shows no search results | Check your internet connection. The panel queries the Steam Workshop API directly — no Steam client needed. |
+| Maps tab shows no maps | Make sure the server was run at least once and `SERVER_DIR` is correct. The vanilla maps live inside the server's `media/maps/` folder. |
+| Cheats item list is empty | The server must be installed and `SERVER_DIR` must point to the right folder. Items are parsed from `media/scripts/` inside the server directory. |
+| Map overlap warning on the Maps tab | Two active maps share terrain cells. Remove one of them — running both will crash the server on startup. |
 | Friends can't connect over ZeroTier | Confirm: (1) both sides are authorized in ZeroTier Central, (2) UFW allows UDP 16261 on the ZeroTier interface, (3) the server is actually running (check the Terminal tab). |
 | `ModuleNotFoundError: No module named 'flask'` | Run `pip3 install -r requirements.txt` from the panel directory. |
 | Terminal tab shows no output after server start | The panel uses a PTY — make sure you're running `python3 app.py` as the same Linux user who owns the server install directory. |
@@ -254,14 +308,16 @@ MIT
 <a name="türkçe"></a>
 # Türkçe
 
-Linux üzerinde bir Project Zomboid Dedicated Server'ı yönetmek için web tabanlı bir kontrol paneli. Modları, sandbox ayarlarını, oyun dünyalarını ve sunucu sürecini tamamen tarayıcıdan yönetin.
+Linux üzerinde bir Project Zomboid Dedicated Server'ı yönetmek için web tabanlı bir kontrol paneli. Modları, haritaları, sandbox ayarlarını, oyun dünyalarını, yönetici araçlarını ve sunucu sürecini tamamen tarayıcıdan yönetin.
 
 ## Özellikler
 
 - **Mod Yönetimi** — Steam Workshop'ta anahtar kelime veya URL ile arama, tüm bağımlılıkları otomatik çözme, sürükle-bırak ile yükleme sırası düzenleme ve kategori filtreleme
+- **Harita Yönetimi** — Her haritanın hangi hücreleri kapsadığını gösteren görsel ızgara, workshop haritalarını ekleme/kaldırma, çakışan hücreleri tespit etme (sunucu çökmesine neden olur), doğum bölgelerini yönetme, oyuncuları harita konumlarına ışınlama
 - **Sandbox Yapılandırması** — Her `SandboxVars.lua` ayarını (vanilla + mod ayarları) dosyalara dokunmadan sekmeli arayüz üzerinden düzenleme
 - **Dünya Yönetimi** — Tüm kayıt dosyalarını listeleme, sıkıştırılmış `.tar.gz` yedekler oluşturma, yedekten geri yükleme ve dünyaları güvenli silme
 - **Gerçek Zamanlı Terminal** — Sunucuyu başlatma, durdurma ve yeniden başlatma; canlı logları tarayıcıda izleme; SSH olmadan konsol komutları gönderme
+- **Yönetici / Cheat'ler** — Çevrimiçi oyunculara herhangi bir eşya verme veya araç oluşturma; tanrı modunu açıp kapama; tüm becerileri maxlama; oyuncuları atma; erişim seviyesi atama; sunucu olaylarını tetikleme (helikopter, silah sesi, yağmur, gök gürültüsü); herkese mesaj yayınlama
 
 ## Ekran Görüntüleri
 
@@ -438,7 +494,7 @@ Arkadaşlarınızın yapması gerekenler:
 3. ZeroTier Central panosunda **Auth**'u işaretleyerek onları yetkilendirin
 4. Project Zomboid'de bağlanın: **Çevrimiçi Oyna → IP adresinizi girin → Port 16261**
 
-> Panelin kendisi (port `8621`) de ZeroTier ağındaki herkese erişilebilir. Arkadaşlarınızın paneli kontrol etmesini istemiyorsanız, yalnızca oyun IP'sini paylaşın, panel URL'sini değil.
+> **Önemli:** Panel (port `8621`) de ZeroTier ağındaki herkese erişilebilir. Bunu kısıtlamak için aşağıdaki güvenlik bölümüne bakın.
 
 ---
 
@@ -448,10 +504,57 @@ Arkadaşlarınızın yapması gerekenler:
 |---|---|
 | **Terminal** | Sunucuyu başlatır/durdurur/yeniden başlatır. Canlı sunucu loglarını gösterir. Giriş kutusuna komut yazarak doğrudan sunucuya gönderin (örn. `servermsg "Merhaba"`, `adduser`, `chopper`). |
 | **Modlar** | Steam Workshop'ta arama, mod detaylarını görüntüleme, bağımlılıkları otomatik çözümlenmiş mod ekleme, yükleme sırasını düzenlemek için satırları sürükleme, mod kaldırma. |
+| **Haritalar** | Her haritanın hangi hücreleri kapsadığını gösteren görsel ızgara. Workshop haritalarını ekleme/kaldırma, çakışan hücreleri tespit etme (sunucu çökmesine neden olur), doğum bölgelerini yönetme ve çevrimiçi oyuncuları harita konumlarına ışınlama. |
 | **Sandbox** | Tüm sandbox ayarlarını (ganimetler, zombi hızı, XP çarpanı vb.) kategoriye göre gruplandırılmış şekilde düzenleme. Mod ekleyen ayarlar kendi sekmeleri altında görünür. |
 | **Dünya** | Tüm kayıt dosyalarını görüntüleme, yedek oluşturma/geri yükleme/silme. Bir dünyayı geri yüklemeden veya silmeden önce sunucunun durdurulması gerekir. |
+| **Cheat'ler** | Çevrimiçi oyunculara herhangi bir eşya verme veya araç oluşturma. Tanrı modunu açıp kapama, tüm becerileri maxlama, oyuncu atma, erişim seviyesi atama, sunucu olaylarını tetikleme (helikopter, silah sesi, yağmur) ve herkese mesaj yayınlama. |
 
 Arayüz **İngilizce** ve **Türkçe** dillerinde mevcuttur — üst gezinme çubuğundaki dil seçici ile değiştirin.
+
+---
+
+## Güvenlik — Paylaşmadan Önce Okuyun
+
+> **Bu panelin giriş sistemi yoktur.** URL'ye erişebilen herkes sunucunuz üzerinde tam yönetici kontrolüne sahip olur. Güvenilir bir özel ağda kişisel kullanım için tasarlanmıştır.
+
+### Panel ne yapabilir
+
+- Sunucuyu başlatma, durdurma ve yeniden başlatma
+- Oyunculara eşya verme, araç oluşturma, tanrı modunu açma, atma ve erişim seviyesi belirleme
+- Oyun dünyalarını silme (bu geri alınamaz, yedek olmadan)
+- Sunucu yapılandırma dosyalarını okuma ve üzerine yazma
+
+### Kullanmadan önce bilmeniz gerekenler
+
+| Risk | Ne yapmalı |
+|---|---|
+| **Panel ZeroTier'daki arkadaşlara açık** | Panel tüm arayüzlere bağlanır (`0.0.0.0`). ZeroTier ağınızdaki herkes `8621` portuna erişebilir. Engellemek için: `sudo ufw deny in on ztXXXXXX to any port 8621` (ztXXXXXX'i kendi ZeroTier arayüz adınızla değiştirin). |
+| **Panel yerel ağınıza açık** | Aynı LAN'da başkaları varsa (ofis, yurt, ortak Wi-Fi), panele erişebilirler. Paneli yalnızca güvenilen ev ağında çalıştırın veya `app.py`'nin son satırını düzenleyerek `host="0.0.0.0"` yerine `host="127.0.0.1"` yazın. |
+| **Asla internete açmayın** | Routerınızda `8621` portunu yönlendirmeyin. Kendiniz kimlik doğrulama eklemeden herkese açık bir reverse proxy'nin arkasına koymayın. |
+| **Yanlışlıkla dünya silme** | Dünya sekmesi kayıtları kalıcı olarak silebilir. Silme düğmesine basmadan önce her zaman yedek oluşturun. |
+| **Cheat sekmesi çok güçlü** | Becerileri sıfırlayabilir, herkesi atabilir, admin rolü atayabilir. Paneli, başkalarının tarayıcı erişimine sahip olduğu paylaşımlı bir makinede çalıştırmayın. |
+
+### Yalnızca yerel erişime ihtiyaç duyuyorsanız hızlı kilitleyici
+
+`app.py`'nin son satırını düzenleyin:
+```python
+# Önce (tüm ağdan erişilebilir):
+app.run(host="0.0.0.0", port=8621, debug=False, threaded=True)
+
+# Sonra (yalnızca localhost — sadece siz erişebilirsiniz):
+app.run(host="127.0.0.1", port=8621, debug=False, threaded=True)
+```
+
+---
+
+## İpuçları ve Bilinmesi Gerekenler
+
+- **Harita değişiklikleri sunucu yeniden başlatması gerektirir** — Haritalar sekmesinde harita ekleyip kaldırmak `servertest.ini`'ye hemen yazar, ancak sunucu bu dosyayı yalnızca başlatmada okur.
+- **Workshop eşyaları indirmek için sunucu yeniden başlatması gerekir** — Panel üzerinden mod veya harita eklediğinizde INI dosyası güncellenir. Asıl dosyalar, sunucunun bir sonraki başlatmasında SteamCMD aracılığıyla indirilir.
+- **Harita çakışmaları sunucuyu çökertir** — İki aktif harita aynı hücreleri paylaşıyorsa Haritalar sekmesi sizi uyarır. Sunucuyu başlatmadan önce çakışan haritalardan birini kaldırın.
+- **Mevcut bir dünyaya harita ekleme** — Bir mod haritasının hücreleri mevcut kayıtta zaten vanilla arazi olarak oluşturulmuşsa, yeni harita bunları tam olarak geçersiz kılmaz. Haritalar sekmesi bu konuda sizi uyarır. En temiz çözüm yeni bir dünya başlatmaktır.
+- **Cheat eşya listesi aktif modlarınızdan oluşturulur** — Sunucunun media klasöründeki ve yüklü modlarınızdaki betik dosyalarını ayrıştırır. Yalnızca `servertest.ini`'de şu anda aktif olan modların eşyalarını gösterir.
+- **Yedekler yerel olarak saklanır** — Dünya sekmesi yedekleri `~/Zomboid/Backups` dizininde `.tar.gz` arşivleri olarak kaydedilir. Kayıtlarınıza önem veriyorsanız bunları düzenli olarak başka bir yere kopyalayın.
 
 ---
 
@@ -467,7 +570,9 @@ pz_panel/
 │   ├── server_manager.py   # PTY süreç yöneticisi, 2000 satır log tamponu
 │   ├── mods.py             # Steam Workshop arama, bağımlılık çözücü
 │   ├── sandbox.py          # SandboxVars.lua ayrıştırıcı ve düzenleyici
-│   └── world.py            # Kayıt yedekleme / geri yükleme / silme
+│   ├── world.py            # Kayıt yedekleme / geri yükleme / silme
+│   ├── maps.py             # Harita ızgarası, ekleme/kaldırma/çakışma tespiti, ışınlama
+│   └── cheats.py           # Eşya tarayıcı, eşya verme, yönetici güç eylemleri
 ├── templates/              # Jinja2 HTML şablonları (her sekme için bir tane)
 ├── static/style.css        # Tüm ön yüz stilleri
 └── translations/
@@ -484,6 +589,9 @@ pz_panel/
 | Panel açılıyor ama sunucu başlamıyor | `config.py`'daki `SERVER_DIR`'in `start-server.sh` dosyasının bulunduğu klasörü gösterdiğini kontrol edin. `ls "$HOME/.local/share/Steam/steamapps/common/Project Zomboid Dedicated Server"` ile doğrulayın. |
 | `servertest.ini` bulunamadı / Sandbox sekmesi boş | Yapılandırma dosyalarını oluşturmak için sunucuyu bir kez elle çalıştırın (`bash start-server.sh`), ardından paneli yeniden başlatın. |
 | Mod sekmesinde arama sonucu yok | İnternet bağlantınızı kontrol edin. Panel doğrudan Steam Workshop API'sini sorgular — Steam istemcisi gerekmez. |
+| Haritalar sekmesinde harita görünmüyor | Sunucunun en az bir kez çalıştırıldığından ve `SERVER_DIR`'in doğru olduğundan emin olun. Vanilla haritalar sunucunun `media/maps/` klasöründe bulunur. |
+| Cheat eşya listesi boş | Sunucunun kurulmuş olması ve `SERVER_DIR`'in doğru klasörü göstermesi gerekir. Eşyalar sunucu dizinindeki `media/scripts/` dosyalarından ayrıştırılır. |
+| Haritalar sekmesinde harita çakışma uyarısı | İki aktif harita aynı arazi hücrelerini paylaşıyor. Bunlardan birini kaldırın — her ikisi de aktifken sunucu başlatmada çökecektir. |
 | Arkadaşlar ZeroTier üzerinden bağlanamıyor | Şunları kontrol edin: (1) her iki taraf ZeroTier Central'da yetkilendirilmiş, (2) UFW ZeroTier arayüzünde UDP 16261'e izin veriyor, (3) sunucu gerçekten çalışıyor (Terminal sekmesine bakın). |
 | `ModuleNotFoundError: No module named 'flask'` | Panel dizininden `pip3 install -r requirements.txt` komutunu çalıştırın. |
 | Terminal sekmesi sunucu başladıktan sonra çıktı göstermiyor | Panel PTY kullanıyor — `python3 app.py` komutunu sunucu kurulum dizinine sahip olan Linux kullanıcısı olarak çalıştırdığınızdan emin olun. |
