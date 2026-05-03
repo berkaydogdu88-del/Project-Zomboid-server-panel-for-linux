@@ -504,10 +504,8 @@ function vanillaZoneCells() {
 function visibleFitCells() {
   if (!_mapData) return vanillaZoneCells();
   const base = baseMapId();
-  const mapCells = _mapData.maps
-    .filter(m => m.id !== base)
-    .flatMap(m => m.cells);
-  return mapCells.concat(vanillaZoneCells());
+  const mapCells = _mapData.maps.flatMap(m => m.cells);
+  return mapCells.length ? mapCells : vanillaZoneCells();
 }
 
 function draw() {
@@ -527,6 +525,17 @@ function draw() {
 
   const sz  = zoom;
   const gap = sz >= 4 ? Math.max(0.5, sz * 0.06) : 0;
+
+  // Base map (Muldraugh, KY) — white cells as the map background
+  const baseMapEntry = _mapData.maps.find(m => m.id === baseMapId());
+  if (baseMapEntry) {
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    for (const [cx, cy] of baseMapEntry.cells) {
+      if (cx < wx0 || cx > wx1 || cy < wy0 || cy > wy1) continue;
+      const [sx, sy] = w2s(cx, cy);
+      ctx.fillRect(sx + gap, sy + gap, sz - gap * 2, sz - gap * 2);
+    }
+  }
 
   // Available maps — dim gray
   for (const m of _mapData.maps) {
