@@ -503,9 +503,11 @@ function vanillaZoneCells() {
 
 function visibleFitCells() {
   if (!_mapData) return vanillaZoneCells();
-  const base = baseMapId();
-  const mapCells = _mapData.maps.flatMap(m => m.cells);
-  return mapCells.length ? mapCells : vanillaZoneCells();
+  // Fit to the base map cells only — pocket-dimension mods (e.g. RV Interior)
+  // sit far outside the main map and would shrink the view if included.
+  const baseEntry = _mapData.maps.find(m => m.id === baseMapId());
+  if (baseEntry && baseEntry.cells.length) return baseEntry.cells;
+  return vanillaZoneCells();
 }
 
 function draw() {
